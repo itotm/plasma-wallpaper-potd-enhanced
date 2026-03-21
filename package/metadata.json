@@ -3,27 +3,27 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "Abubakar Yagoub",
-                "Email": "plasma@aolabs.dev"
-            },
-            {
-                "Email": "link@sub-pop.net",
-                "Name": "Link Dupont"
+                "Name": "itotm",
+                "Email": ""
             }
         ],
         "Category": "",
-        "Description": "Wallpaper plugin to fetch wallpapers from wallhaven.cc",
+        "Description": "Enhanced Picture of the Day wallpaper plugin for KDE Plasma 6 — displays Bing's daily image with copyright overlay",
         "Icon": "preferences-desktop-wallpaper",
-        "Id": "com.plasma.wallpaper.wallhaven",
+        "Id": "com.plasma.wallpaper.potd-enhanced",
         "License": "GPLv2+",
-        "Version": "2.0.0",
-        "Name": "Wallhaven",
-        "Website": "https://github.com/Blacksuan19/plasma-wallpaper-wallhaven-reborn",
-        "BugReportUrl": "https://github.com/Blacksuan19/plasma-wallpaper-wallhaven-reborn/issues"
+        "Version": "1.0.0",
+        "Name": "Picture of the Day Enhanced",
+        "Website": "https://github.com/itotm/plasma-wallpaper-potd-enhanced",
+        "BugReportUrl": "https://github.com/itotm/plasma-wallpaper-potd-enhanced/issues"
     },
     "Keywords": [
-        "wallhaven",
-        "wallpaper"
+        "bing",
+        "wallpaper",
+        "daily",
+        "potd",
+        "picture of the day",
+        "enhanced"
     ],
     "X-KDE-ParentApp": "org.kde.plasmashell",
     "X-Plasma-API-Minimum-Version": "6.0"
