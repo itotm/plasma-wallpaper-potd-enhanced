@@ -22,3 +22,17 @@ function detectMarket() {
     }
     return "en-US";
 }
+
+function parseCopyright(str) {
+    if (!str)
+        return { description: "", copyright: "" };
+    // Try matching "Description (© Copyright)" format
+    var match = str.match(/^(.*?)\s*\(©\s*(.*)\)\s*$/);
+    if (match)
+        return { description: match[1].trim(), copyright: match[2].trim() };
+    // Try matching "Description (Copyright)" without ©
+    match = str.match(/^(.*?)\s*\((.*)\)\s*$/);
+    if (match)
+        return { description: match[1].trim(), copyright: match[2].trim() };
+    return { description: str, copyright: "" };
+}

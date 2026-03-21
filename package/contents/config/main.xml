@@ -17,21 +17,21 @@
       <label>Sizing, cropping and positioning of the wallpaper image</label>
       <default>0</default>
     </entry>
+    <entry name="Provider" type="String">
+      <label>Image provider (e.g. bing)</label>
+      <default>bing</default>
+    </entry>
     <entry name="Market" type="String">
       <label>Bing market/region for daily image</label>
       <default></default>
     </entry>
-    <entry name="ShowCopyright" type="bool">
-      <label>Show copyright overlay on wallpaper</label>
+    <entry name="ShowOverlay" type="bool">
+      <label>Show overlay text on wallpaper</label>
       <default>true</default>
     </entry>
-    <entry name="CopyrightPosition" type="String">
-      <label>Position of copyright overlay (top-left, top-right, bottom-left, bottom-right)</label>
+    <entry name="OverlayPosition" type="String">
+      <label>Position of overlay (top-left, top-right, bottom-left, bottom-right)</label>
       <default>bottom-left</default>
-    </entry>
-    <entry name="WallpaperDelay" type="int">
-      <label>How much time in minutes between wallpaper refresh</label>
-      <default>60</default>
     </entry>
     <entry name="RetryRequestCount" type="int">
       <label>How many times to retry request when it fails</label>
@@ -45,14 +45,6 @@
       <label>Signal to trigger refetch from config page</label>
       <default>false</default>
     </entry>
-    <entry name="RefreshNotification" type="bool">
-      <label>Whether to show notification when wallpaper is refreshed</label>
-      <default>true</default>
-    </entry>
-    <entry name="ErrorNotification" type="bool">
-      <label>Whether to show notification when an error occurs</label>
-      <default>true</default>
-    </entry>
     <entry name="currentWallpaperThumbnail" type="String">
       <label>Small wallpaper preview</label>
       <default></default>
@@ -62,11 +54,23 @@
       <default></default>
     </entry>
     <entry name="LastCopyrightText" type="String">
-      <label>Copyright text from last loaded Bing image</label>
+      <label>Full copyright text from last loaded Bing image</label>
       <default></default>
     </entry>
     <entry name="LastCopyrightLink" type="String">
       <label>Copyright link from last loaded Bing image</label>
+      <default></default>
+    </entry>
+    <entry name="LastTitle" type="String">
+      <label>Title from the Bing JSON response</label>
+      <default></default>
+    </entry>
+    <entry name="LastDescription" type="String">
+      <label>Description parsed from the copyright text (before parentheses)</label>
+      <default></default>
+    </entry>
+    <entry name="LastParsedCopyright" type="String">
+      <label>Copyright holder parsed from the copyright text (inside parentheses)</label>
       <default></default>
     </entry>
   </group>
