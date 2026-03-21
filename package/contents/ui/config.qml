@@ -47,6 +47,18 @@ Item {
                                         configDialog.needsSave = true;
                                     if (configDialog && typeof configDialog.save === "function")
                                         configDialog.save();
+                                    metadataSyncTimer.start();
+                                }
+
+                                function syncMetadata()
+                                {
+                                    if (!wallpaperConfiguration)
+                                        return;
+                                    cfg_currentWallpaperThumbnail = wallpaperConfiguration.currentWallpaperThumbnail || "";
+                                    cfg_LastTitle = wallpaperConfiguration.LastTitle || "";
+                                    cfg_LastDescription = wallpaperConfiguration.LastDescription || "";
+                                    cfg_LastParsedCopyright = wallpaperConfiguration.LastParsedCopyright || "";
+                                    cfg_LastCopyrightLink = wallpaperConfiguration.LastCopyrightLink || "";
                                 }
 
                                 function openCopyrightLink()
@@ -348,5 +360,13 @@ Item {
                             implicitHeight: Kirigami.Units.gridUnit
                         }
                     }
+                }
+
+                Timer {
+                    id: metadataSyncTimer
+
+                    interval: 3000
+                    repeat: false
+                    onTriggered: syncMetadata()
                 }
             }
