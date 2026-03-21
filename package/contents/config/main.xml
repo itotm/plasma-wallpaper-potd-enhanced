@@ -22,7 +22,7 @@
       <default>bing</default>
     </entry>
     <entry name="Market" type="String">
-      <label>Bing market/region for daily image</label>
+      <label>Market/region locale for daily image</label>
       <default></default>
     </entry>
     <entry name="ShowOverlay" type="bool">
@@ -54,15 +54,15 @@
       <default></default>
     </entry>
     <entry name="LastCopyrightText" type="String">
-      <label>Full copyright text from last loaded Bing image</label>
+      <label>Full copyright text from last loaded image</label>
       <default></default>
     </entry>
     <entry name="LastCopyrightLink" type="String">
-      <label>Copyright link from last loaded Bing image</label>
+      <label>Copyright link from last loaded image</label>
       <default></default>
     </entry>
     <entry name="LastTitle" type="String">
-      <label>Title from the Bing JSON response</label>
+      <label>Title from the image provider response</label>
       <default></default>
     </entry>
     <entry name="LastDescription" type="String">

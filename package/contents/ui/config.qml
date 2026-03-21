@@ -32,11 +32,11 @@ Item {
             property bool cfg_ShowOverlay
             property string cfg_OverlayPosition
 
-            readonly property string currentThumbnailSource: (wallpaperConfiguration && wallpaperConfiguration.currentWallpaperThumbnail) ? wallpaperConfiguration.currentWallpaperThumbnail : cfg_currentWallpaperThumbnail
-                readonly property string currentTitle: (wallpaperConfiguration && wallpaperConfiguration.LastTitle) ? wallpaperConfiguration.LastTitle : cfg_LastTitle
-                    readonly property string currentDescription: (wallpaperConfiguration && wallpaperConfiguration.LastDescription) ? wallpaperConfiguration.LastDescription : cfg_LastDescription
-                        readonly property string currentParsedCopyright: (wallpaperConfiguration && wallpaperConfiguration.LastParsedCopyright) ? wallpaperConfiguration.LastParsedCopyright : cfg_LastParsedCopyright
-                            readonly property string currentCopyrightLink: (wallpaperConfiguration && wallpaperConfiguration.LastCopyrightLink) ? wallpaperConfiguration.LastCopyrightLink : cfg_LastCopyrightLink
+            readonly property string currentThumbnailSource: wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail
+                readonly property string currentTitle: wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle
+                    readonly property string currentDescription: wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription
+                        readonly property string currentParsedCopyright: wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright
+                            readonly property string currentCopyrightLink: wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink
 
                                 function refreshImage()
                                 {
@@ -176,10 +176,16 @@ Item {
                             textRole: "text"
                             valueRole: "value"
                             model: [
-                            { text: "Bing", value: "bing" }
+                            { text: "Bing", value: "bing" },
+                            { text: "Spotlight", value: "spotlight" }
                             ]
                             Component.onCompleted: currentIndex = indexOfValue(cfg_Provider)
-                            onActivated: cfg_Provider = currentValue
+                            onActivated: {
+                                cfg_Provider = currentValue;
+                                if (wallpaperConfiguration)
+                                    wallpaperConfiguration.Provider = cfg_Provider;
+                                refreshImage();
+                            }
                         }
 
                         // Region selector
@@ -213,6 +219,8 @@ Item {
                             }
                             onActivated: {
                                 cfg_Market = currentValue;
+                                if (wallpaperConfiguration)
+                                    wallpaperConfiguration.Market = cfg_Market;
                                 refreshImage();
                             }
                         }
@@ -226,36 +234,52 @@ Item {
                             Layout.bottomMargin: 0
                             visible: currentThumbnailSource !== ""
 
-                            Kirigami.ShadowedRectangle {
-                                id: imageContainer
-
+                            Row {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                height: 160
-                                width: 250
-                                radius: 8
-                                shadow.size: 15
-                                shadow.color: Qt.rgba(0, 0, 0, 0.2)
-                                shadow.yOffset: 2
-                                Kirigami.Theme.colorSet: Kirigami.Theme.View
-                                Kirigami.Theme.inherit: false
-                                color: Kirigami.Theme.alternateBackgroundColor
+                                spacing: Kirigami.Units.smallSpacing
 
-                                Image {
-                                    id: currentWallpaper
+                                Kirigami.ShadowedRectangle {
+                                    id: imageContainer
 
-                                    anchors.fill: parent
-                                    anchors.margins: 5
-                                    fillMode: Image.PreserveAspectCrop
-                                    source: currentThumbnailSource
-                                    asynchronous: true
-                                    cache: true
-                                    smooth: true
+                                    height: 160
+                                    width: 250
+                                    radius: 8
+                                    shadow.size: 15
+                                    shadow.color: Qt.rgba(0, 0, 0, 0.2)
+                                    shadow.yOffset: 2
+                                    Kirigami.Theme.colorSet: Kirigami.Theme.View
+                                    Kirigami.Theme.inherit: false
+                                    color: Kirigami.Theme.alternateBackgroundColor
+
+                                    Image {
+                                        id: currentWallpaper
+
+                                        anchors.fill: parent
+                                        anchors.margins: 5
+                                        fillMode: Image.PreserveAspectCrop
+                                        source: currentThumbnailSource
+                                        asynchronous: true
+                                        cache: true
+                                        smooth: true
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        onClicked: openCopyrightLink()
+                                    }
                                 }
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: openCopyrightLink()
+                                Button {
+                                    id: refreshButton
+
+                                    visible: cfg_Provider !== "bing"
+                                    icon.name: "view-refresh"
+                                    display: Button.IconOnly
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    ToolTip.text: i18n("Refresh Image")
+                                    ToolTip.visible: hovered
+                                    onClicked: refreshImage()
                                 }
                             }
                         }
