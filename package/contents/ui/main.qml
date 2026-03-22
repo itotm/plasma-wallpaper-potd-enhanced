@@ -136,18 +136,17 @@ WallpaperItem {
                                                         main.configuration.LastDescription = description;
                                                         main.configuration.LastParsedCopyright = parsedCopyright;
                                                         main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
-                                                        wallpaper.configuration.writeConfig();
 
                                                         if (result.imageUrl === lastLoadedUrl)
                                                         {
                                                             log("Same image as current, skipping load");
+                                                            wallpaper.configuration.writeConfig();
                                                             isLoading = false;
                                                             return;
                                                         }
 
                                                         consecutiveErrors = 0;
                                                         main.currentUrl = result.imageUrl;
-                                                        main.configuration.lastValidImagePath = result.imageUrl;
                                                         wallpaper.configuration.writeConfig();
                                                     } catch (e) {
                                                     handleRequestError(retries, "Parse error: " + e);
@@ -200,11 +199,17 @@ WallpaperItem {
                     onRefreshSignalChanged: Qt.callLater(refreshImage)
                     onProviderChanged: Qt.callLater(refreshImage)
                     Component.onCompleted: Qt.callLater(refreshImage)
+                    onIsLoadingChanged: {
+                        if (isLoading)
+                            loadingTimeoutTimer.restart();
+                        else
+                            loadingTimeoutTimer.stop();
+                    }
 
                     contextualActions: [
                         PlasmaCore.Action {
-                            text: i18n("Open Wallpaper Image")
-                            icon.name: "image-x-generic"
+                            text: i18n("Open Wallpaper")
+                            icon.name: "folder-open"
                             onTriggered: {
                                 if (main.currentUrl && main.currentUrl.toString() !== "" && main.currentUrl.toString() !== "blackscreen.jpg")
                                     Qt.openUrlExternally(main.currentUrl);
@@ -226,6 +231,18 @@ WallpaperItem {
                         interval: main.retryRequestDelay * 1000
                         repeat: false
                         onTriggered: fetchImage(retryTimer.retries - 1)
+                    }
+
+                    Timer {
+                        id: loadingTimeoutTimer
+                        interval: 60000
+                        repeat: false
+                        onTriggered: {
+                            if (isLoading) {
+                                log("Loading timeout - resetting isLoading flag");
+                                isLoading = false;
+                            }
+                        }
                     }
 
                     Component {
