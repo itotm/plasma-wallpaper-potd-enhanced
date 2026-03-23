@@ -1,6 +1,8 @@
 .import "provider-bing.js" as BingProvider
+.import "provider-hubble.js" as HubbleProvider
 .import "provider-nasa.js" as NasaProvider
 .import "provider-spotlight.js" as SpotlightProvider
+.import "provider-webb.js" as WebbProvider
 .import "provider-wikimedia.js" as WikimediaProvider
 
 // To add a new provider:
@@ -10,10 +12,14 @@
 
 function buildUrl(provider, market) {
     switch (provider) {
+        case "hubble":
+            return HubbleProvider.buildUrl(market);
         case "nasa":
             return NasaProvider.buildUrl(market);
         case "spotlight":
             return SpotlightProvider.buildUrl(market);
+        case "webb":
+            return WebbProvider.buildUrl(market);
         case "wikimedia":
             return WikimediaProvider.buildUrl(market);
         default:
@@ -23,10 +29,14 @@ function buildUrl(provider, market) {
 
 function parseResponse(provider, responseText, isPortrait) {
     switch (provider) {
+        case "hubble":
+            return HubbleProvider.parseResponse(responseText, isPortrait);
         case "nasa":
             return NasaProvider.parseResponse(responseText, isPortrait);
         case "spotlight":
             return SpotlightProvider.parseResponse(responseText, isPortrait);
+        case "webb":
+            return WebbProvider.parseResponse(responseText, isPortrait);
         case "wikimedia":
             return WikimediaProvider.parseResponse(responseText, isPortrait);
         default:

@@ -172,6 +172,8 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
+                            { text: "ESA Hubble PotW", value: "hubble" },
+                            { text: "ESA Webb PotM", value: "webb" },
                             { text: "NASA APoD", value: "nasa" },
                             { text: "Spotlight", value: "spotlight" },
                             { text: "Wikimedia Commons", value: "wikimedia" }
@@ -188,7 +190,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
-                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa"
+                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"

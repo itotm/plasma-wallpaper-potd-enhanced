@@ -7,11 +7,16 @@ multiple providers, with copyright overlay and region selection.
 
 ## Features
 
-- **Multiple providers**: Bing, Windows Spotlight, and Wikimedia Commons.
+- **Multiple providers**: Bing, ESA Hubble Picture of the Week, ESA Webb
+  Picture of the Month, NASA Astronomy Picture of the Day, Windows Spotlight,
+  and Wikimedia Commons.
 - **Orientation-aware**: automatically selects UHD landscape or portrait
   resolution based on screen dimensions.
 - **Region/market selection**: 14 locales available; auto-detected from system
   locale on first run.
+- **Preview caching**: the image previewed in the configuration dialog is the
+  same one applied as wallpaper (avoids re-fetching from random providers like
+  Spotlight).
 - **Copyright overlay**: toggleable text overlay showing title and description,
   positionable in any corner (top/bottom, left/right).
 - **Right-click context menu**: "Open Wallpaper" (all providers) and "Refresh
