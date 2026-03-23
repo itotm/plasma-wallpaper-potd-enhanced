@@ -172,6 +172,7 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
+                            { text: "NASA APoD", value: "nasa" },
                             { text: "Spotlight", value: "spotlight" },
                             { text: "Wikimedia Commons", value: "wikimedia" }
                             ]
@@ -187,7 +188,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
-                            visible: cfg_Provider !== "wikimedia"
+                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"
@@ -296,6 +297,7 @@ Item {
                             visible: currentDescription !== ""
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
+                            Layout.maximumWidth: 250
                         }
 
                         // Copyright (part inside parentheses)
@@ -305,6 +307,7 @@ Item {
                             visible: currentParsedCopyright !== ""
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
+                            Layout.maximumWidth: 250
                         }
 
                         // Overlay settings

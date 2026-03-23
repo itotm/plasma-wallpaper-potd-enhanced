@@ -1,4 +1,5 @@
 .import "provider-bing.js" as BingProvider
+.import "provider-nasa.js" as NasaProvider
 .import "provider-spotlight.js" as SpotlightProvider
 .import "provider-wikimedia.js" as WikimediaProvider
 
@@ -9,6 +10,8 @@
 
 function buildUrl(provider, market) {
     switch (provider) {
+        case "nasa":
+            return NasaProvider.buildUrl(market);
         case "spotlight":
             return SpotlightProvider.buildUrl(market);
         case "wikimedia":
@@ -20,6 +23,8 @@ function buildUrl(provider, market) {
 
 function parseResponse(provider, responseText, isPortrait) {
     switch (provider) {
+        case "nasa":
+            return NasaProvider.parseResponse(responseText, isPortrait);
         case "spotlight":
             return SpotlightProvider.parseResponse(responseText, isPortrait);
         case "wikimedia":
