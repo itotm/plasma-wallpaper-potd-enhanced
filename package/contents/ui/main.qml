@@ -101,9 +101,59 @@ WallpaperItem {
                                                     }
                                                 }
 
+                                                function applyFetchResult(result)
+                                                {
+                                                    copyrightText = result.copyrightText;
+                                                    copyrightLink = result.copyrightLink;
+                                                    imageTitle = result.title;
+                                                    description = result.description;
+                                                    parsedCopyright = result.copyright;
+
+                                                    main.configuration.LastCopyrightText = copyrightText;
+                                                    main.configuration.LastCopyrightLink = copyrightLink;
+                                                    main.configuration.LastTitle = imageTitle;
+                                                    main.configuration.LastDescription = description;
+                                                    main.configuration.LastParsedCopyright = parsedCopyright;
+                                                    main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
+
+                                                    if (result.imageUrl === lastLoadedUrl)
+                                                    {
+                                                        log("Same image as current, skipping load");
+                                                        wallpaper.configuration.writeConfig();
+                                                        isLoading = false;
+                                                        return;
+                                                    }
+
+                                                    consecutiveErrors = 0;
+                                                    main.currentUrl = result.imageUrl;
+                                                    wallpaper.configuration.writeConfig();
+                                                }
+
                                                 function fetchImage(retries)
                                                 {
                                                     var provider = main.configuration.Provider || "bing";
+
+                                                    // Use cached response from config preview if available
+                                                    var cachedResponse = main.configuration.CachedResponse || "";
+                                                    var cachedProvider = main.configuration.CachedProvider || "";
+                                                    if (cachedResponse !== "") {
+                                                        main.configuration.CachedResponse = "";
+                                                        main.configuration.CachedProvider = "";
+                                                        if (cachedProvider === provider) {
+                                                            log("Using cached response from config preview");
+                                                            try {
+                                                                var isPortrait = main.height > main.width;
+                                                                var result = Providers.parseResponse(provider, cachedResponse, isPortrait);
+                                                                if (result) {
+                                                                    applyFetchResult(result);
+                                                                    return;
+                                                                }
+                                                            } catch (e) {
+                                                                log("Cached response parse error: " + e + ", fetching fresh");
+                                                            }
+                                                        }
+                                                    }
+
                                                     var market = main.configuration.Market;
                                                     if (!market || market === "")
                                                         market = Utils.detectMarket();
@@ -125,31 +175,7 @@ WallpaperItem {
                                                             handleRequestError(retries, "No image in response");
                                                             return;
                                                         }
-
-                                                        copyrightText = result.copyrightText;
-                                                        copyrightLink = result.copyrightLink;
-                                                        imageTitle = result.title;
-                                                        description = result.description;
-                                                        parsedCopyright = result.copyright;
-
-                                                        main.configuration.LastCopyrightText = copyrightText;
-                                                        main.configuration.LastCopyrightLink = copyrightLink;
-                                                        main.configuration.LastTitle = imageTitle;
-                                                        main.configuration.LastDescription = description;
-                                                        main.configuration.LastParsedCopyright = parsedCopyright;
-                                                        main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
-
-                                                        if (result.imageUrl === lastLoadedUrl)
-                                                        {
-                                                            log("Same image as current, skipping load");
-                                                            wallpaper.configuration.writeConfig();
-                                                            isLoading = false;
-                                                            return;
-                                                        }
-
-                                                        consecutiveErrors = 0;
-                                                        main.currentUrl = result.imageUrl;
-                                                        wallpaper.configuration.writeConfig();
+                                                        applyFetchResult(result);
                                                     } catch (e) {
                                                     handleRequestError(retries, "Parse error: " + e);
                                                 }

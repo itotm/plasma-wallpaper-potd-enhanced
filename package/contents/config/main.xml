@@ -73,6 +73,14 @@
       <label>Copyright holder parsed from the copyright text (inside parentheses)</label>
       <default></default>
     </entry>
+    <entry name="CachedResponse" type="String">
+      <label>Cached API response from config preview</label>
+      <default></default>
+    </entry>
+    <entry name="CachedProvider" type="String">
+      <label>Provider of the cached response</label>
+      <default></default>
+    </entry>
   </group>
 
 </kcfg>

@@ -37,6 +37,9 @@ Item {
             property string previewCopyrightLink: ""
             property bool hasPreview: false
 
+            property string cfg_CachedResponse
+            property string cfg_CachedProvider
+
             readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
                 readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
                     readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
@@ -52,6 +55,8 @@ Item {
                                         market = Utils.detectMarket();
                                     }
                                     cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+                                    cfg_CachedResponse = "";
+                                    cfg_CachedProvider = "";
                                     var url = Providers.buildUrl(provider, market);
                                     console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
 
@@ -80,6 +85,8 @@ Item {
                                             cfg_LastDescription = result.description;
                                             cfg_LastParsedCopyright = result.copyright;
                                             cfg_LastCopyrightLink = result.copyrightLink;
+                                            cfg_CachedResponse = xhr.responseText;
+                                            cfg_CachedProvider = provider;
                                         } catch (e) {
                                             console.log("PotD Enhanced config: Preview parse error: " + e);
                                         }
