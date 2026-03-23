@@ -15,12 +15,13 @@ import org.kde.notification 1.0
 import org.kde.plasma.core 2.0 as PlasmaCore
 import org.kde.plasma.plasmoid
 import "utils.js" as Utils
+import "providers.js" as Providers
 
 WallpaperItem {
     id: main
 
     property url currentUrl
-    readonly property int fillMode: main.configuration.FillMode
+    readonly property int fillMode: Image.PreserveAspectCrop
         readonly property bool refreshSignal: main.configuration.RefetchSignal
             readonly property string provider: main.configuration.Provider || "bing"
                 readonly property int retryRequestCount: main.configuration.RetryRequestCount
@@ -36,6 +37,7 @@ WallpaperItem {
                                                 property string description: main.configuration.LastDescription || ""
                                                     property string parsedCopyright: main.configuration.LastParsedCopyright || ""
                                                         property int consecutiveErrors: 0
+                                                        property bool _initialRefreshDone: false
 
                                                             function log(msg)
                                                             {
@@ -105,7 +107,7 @@ WallpaperItem {
                                                     var market = main.configuration.Market;
                                                     if (!market || market === "")
                                                         market = Utils.detectMarket();
-                                                    var url = Utils.buildProviderUrl(provider, market);
+                                                    var url = Providers.buildUrl(provider, market);
                                                     log("Fetching from " + provider + ": " + url);
 
                                                     var xhr = new XMLHttpRequest();
@@ -117,7 +119,7 @@ WallpaperItem {
                                                     }
                                                     try {
                                                         var isPortrait = main.height > main.width;
-                                                        var result = Utils.parseProviderResponse(provider, xhr.responseText, isPortrait);
+                                                        var result = Providers.parseResponse(provider, xhr.responseText, isPortrait);
                                                         if (!result)
                                                         {
                                                             handleRequestError(retries, "No image in response");
@@ -159,6 +161,7 @@ WallpaperItem {
                                         handleRequestError(retries, "Request timed out");
                                     };
                                     xhr.open("GET", url);
+                                    xhr.setRequestHeader("User-Agent", "PotDEnhanced/1.0 (KDE Plasma Wallpaper; https://github.com)");
                                     xhr.timeout = 30000;
                                     xhr.send();
                                 }
@@ -195,10 +198,23 @@ WallpaperItem {
 
                     anchors.fill: parent
                     onCurrentUrlChanged: loadImage()
-                    onFillModeChanged: loadImage()
                     onRefreshSignalChanged: Qt.callLater(refreshImage)
-                    onProviderChanged: Qt.callLater(refreshImage)
-                    Component.onCompleted: Qt.callLater(refreshImage)
+                    onWidthChanged: _tryInitialRefresh()
+                    onHeightChanged: _tryInitialRefresh()
+                    Component.onCompleted: {
+                        if (lastValidImagePath !== "") {
+                            main.currentUrl = lastValidImagePath;
+                        }
+                        _tryInitialRefresh();
+                    }
+
+                    function _tryInitialRefresh() {
+                        if (_initialRefreshDone) return;
+                        if (main.width > 0 && main.height > 0) {
+                            _initialRefreshDone = true;
+                            Qt.callLater(refreshImage);
+                        }
+                    }
                     onIsLoadingChanged: {
                         if (isLoading)
                             loadingTimeoutTimer.restart();
@@ -218,7 +234,7 @@ WallpaperItem {
                         PlasmaCore.Action {
                             text: i18n("Refresh Image")
                             icon.name: "view-refresh"
-                            visible: main.provider !== "bing"
+                            visible: main.provider === "spotlight"
                             onTriggered: refreshImage()
                         }
                     ]
@@ -260,6 +276,12 @@ WallpaperItem {
                         id: root
 
                         anchors.fill: parent
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: isLoading ? Qt.BusyCursor : Qt.ArrowCursor
+                            acceptedButtons: Qt.NoButton
+                        }
 
                         Component {
                             id: mainImage

@@ -12,16 +12,14 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kquickcontrols 2.0 as KQuickControls
 import "utils.js" as Utils
+import "providers.js" as Providers
 
 Item {
     id: root
 
     property var configDialog
     property var wallpaperConfiguration
-    property alias cfg_Color: colorButton.color
-        property alias cfg_Blur: blurRadioButton.checked
-            property int cfg_FillMode
-            property bool cfg_RefetchSignal
+    property bool cfg_RefetchSignal
             property string cfg_currentWallpaperThumbnail
             property string cfg_Market
             property string cfg_Provider
@@ -32,25 +30,74 @@ Item {
             property bool cfg_ShowOverlay
             property string cfg_OverlayPosition
 
-            readonly property string currentThumbnailSource: wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail
-                readonly property string currentTitle: wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle
-                    readonly property string currentDescription: wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription
-                        readonly property string currentParsedCopyright: wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright
-                            readonly property string currentCopyrightLink: wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink
+            property string previewThumbnail: ""
+            property string previewTitle: ""
+            property string previewDescription: ""
+            property string previewParsedCopyright: ""
+            property string previewCopyrightLink: ""
+            property bool hasPreview: false
 
-                                function refreshImage()
+            readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
+                readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
+                    readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
+                        readonly property string currentParsedCopyright: hasPreview ? previewParsedCopyright : (wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright)
+                            readonly property string currentCopyrightLink: hasPreview ? previewCopyrightLink : (wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink)
+
+                                function fetchPreview()
                                 {
-                                    cfg_RefetchSignal = !cfg_RefetchSignal;
-                                    if (wallpaperConfiguration)
-                                        wallpaperConfiguration.RefetchSignal = cfg_RefetchSignal;
-                                    metadataSyncTimer.start();
+                                    var provider = cfg_Provider;
+                                    var market = cfg_Market;
+                                    if (!market || market === "")
+                                    {
+                                        market = Utils.detectMarket();
+                                    }
+                                    cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+                                    var url = Providers.buildUrl(provider, market);
+                                    console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
+
+                                    var xhr = new XMLHttpRequest();
+                                    xhr.onload = function() {
+                                        if (xhr.status !== 200)
+                                        {
+                                            console.log("PotD Enhanced config: Preview fetch failed: " + xhr.status);
+                                            return;
+                                        }
+                                        try {
+                                            var result = Providers.parseResponse(provider, xhr.responseText, false);
+                                            if (!result)
+                                            {
+                                                return;
+                                            }
+                                            previewThumbnail = result.thumbnailUrl;
+                                            previewTitle = result.title;
+                                            previewDescription = result.description;
+                                            previewParsedCopyright = result.copyright;
+                                            previewCopyrightLink = result.copyrightLink;
+                                            hasPreview = true;
+
+                                            cfg_currentWallpaperThumbnail = result.thumbnailUrl;
+                                            cfg_LastTitle = result.title;
+                                            cfg_LastDescription = result.description;
+                                            cfg_LastParsedCopyright = result.copyright;
+                                            cfg_LastCopyrightLink = result.copyrightLink;
+                                        } catch (e) {
+                                            console.log("PotD Enhanced config: Preview parse error: " + e);
+                                        }
+                                    };
+                                    xhr.onerror = function() {
+                                        console.log("PotD Enhanced config: Preview request error");
+                                    };
+                                    xhr.open("GET", url);
+                                    xhr.setRequestHeader("User-Agent", "PotDEnhanced/1.0 (KDE Plasma Wallpaper; https://github.com)");
+                                    xhr.timeout = 30000;
+                                    xhr.send();
                                 }
 
                                 property bool _syncing: false
 
                                 function syncMetadata()
                                 {
-                                    if (_syncing || !wallpaperConfiguration)
+                                    if (_syncing || !wallpaperConfiguration || hasPreview)
                                         return;
                                     _syncing = true;
                                     cfg_currentWallpaperThumbnail = wallpaperConfiguration.currentWallpaperThumbnail || "";
@@ -109,78 +156,7 @@ Item {
 
                                             width: scrollView.width - (scrollView.ScrollBar.vertical.visible ? scrollView.ScrollBar.vertical.width + Kirigami.Units.smallSpacing : 0) - Kirigami.Units.largeSpacing
 
-                                            // Positioning
-                                            ComboBox {
-                                                id: resizeComboBox
-
-                                                function setMethod()
-                                                {
-                                                    for (var i = 0; i < model.length; i++) {
-                                                        const fillModeValue = wallpaperConfiguration ? wallpaperConfiguration.FillMode : cfg_FillMode;
-                                                        if (model[i]["fillMode"] === fillModeValue)
-                                                        {
-                                                            resizeComboBox.currentIndex = i;
-                                                        }
-                                                    }
-                                                }
-
-                                                Kirigami.FormData.label: i18nd("plasma_wallpaper_org.kde.image", "Positioning:")
-                                                model: [{
-                                                "label": i18nd("plasma_wallpaper_org.kde.image", "Scaled and Cropped"),
-                                                "fillMode": Image.PreserveAspectCrop
-                                            }, {
-                                            "label": i18nd("plasma_wallpaper_org.kde.image", "Scaled"),
-                                            "fillMode": Image.Stretch
-                                        }, {
-                                        "label": i18nd("plasma_wallpaper_org.kde.image", "Scaled, Keep Proportions"),
-                                        "fillMode": Image.PreserveAspectFit
-                                    }, {
-                                    "label": i18nd("plasma_wallpaper_org.kde.image", "Centered"),
-                                    "fillMode": Image.Pad
-                                }, {
-                                "label": i18nd("plasma_wallpaper_org.kde.image", "Tiled"),
-                                "fillMode": Image.Tile
-                            }]
-                            textRole: "label"
-                            onCurrentIndexChanged: cfg_FillMode = model[currentIndex]["fillMode"]
-                            Component.onCompleted: setMethod()
-                        }
-
-                        // Background options
-                        ButtonGroup {
-                            id: backgroundGroup
-                        }
-
-                        RadioButton {
-                            id: blurRadioButton
-
-                            visible: cfg_FillMode === Image.PreserveAspectFit || cfg_FillMode === Image.Pad
-                            Kirigami.FormData.label: i18nd("plasma_wallpaper_org.kde.image", "Background:")
-                            text: i18nd("plasma_wallpaper_org.kde.image", "Blur")
-                            ButtonGroup.group: backgroundGroup
-                        }
-
-                        RowLayout {
-                            id: colorRow
-
-                            visible: cfg_FillMode === Image.PreserveAspectFit || cfg_FillMode === Image.Pad
-
-                            RadioButton {
-                                id: colorRadioButton
-
-                                text: i18nd("plasma_wallpaper_org.kde.image", "Solid color")
-                                checked: !cfg_Blur
-                                ButtonGroup.group: backgroundGroup
-                            }
-
-                            KQuickControls.ColorButton {
-                                id: colorButton
-
-                                dialogTitle: i18nd("plasma_wallpaper_org.kde.image", "Select Background Color")
-                            }
-                        }
-
-                        // Provider
+                                            // Provider
                         ComboBox {
                             id: providerInput
 
@@ -189,14 +165,14 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
-                            { text: "Spotlight", value: "spotlight" }
+                            { text: "Spotlight", value: "spotlight" },
+                            { text: "Wikimedia Commons", value: "wikimedia" }
                             ]
                             Component.onCompleted: currentIndex = indexOfValue(cfg_Provider)
                             onActivated: {
                                 cfg_Provider = currentValue;
-                                if (wallpaperConfiguration)
-                                    wallpaperConfiguration.Provider = cfg_Provider;
-                                refreshImage();
+                                hasPreview = false;
+                                fetchPreview();
                             }
                         }
 
@@ -204,6 +180,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
+                            visible: cfg_Provider !== "wikimedia"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"
@@ -231,17 +208,16 @@ Item {
                             }
                             onActivated: {
                                 cfg_Market = currentValue;
-                                if (wallpaperConfiguration)
-                                    wallpaperConfiguration.Market = cfg_Market;
-                                refreshImage();
+                                hasPreview = false;
+                                fetchPreview();
                             }
                         }
 
                         Item {
                             implicitHeight: 162
                             Layout.fillWidth: true
-                            Layout.topMargin: 0
-                            Layout.bottomMargin: 0
+                            Layout.topMargin: Kirigami.Units.largeSpacing
+                            Layout.bottomMargin: Kirigami.Units.largeSpacing
                             visible: currentThumbnailSource !== ""
 
                             Row {
@@ -283,13 +259,13 @@ Item {
                                 Button {
                                     id: refreshButton
 
-                                    visible: cfg_Provider !== "bing"
+                                    visible: cfg_Provider === "spotlight"
                                     icon.name: "view-refresh"
                                     display: Button.IconOnly
                                     anchors.verticalCenter: parent.verticalCenter
                                     ToolTip.text: i18n("Refresh Image")
                                     ToolTip.visible: hovered
-                                    onClicked: refreshImage()
+                                    onClicked: fetchPreview()
                                 }
                             }
                         }
@@ -301,6 +277,8 @@ Item {
                             font.bold: true
                             visible: currentTitle !== ""
                             wrapMode: Text.Wrap
+                            elide: Text.ElideRight
+                            maximumLineCount: 2
                             Layout.fillWidth: true
                         }
 
