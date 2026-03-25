@@ -8,7 +8,7 @@
             }
         ],
         "Category": "",
-        "Description": "PotD Enhanced wallpaper plugin for KDE Plasma 6 — displays Bing's daily image with copyright overlay",
+        "Description": "PotD Enhanced wallpaper plugin for KDE Plasma 6",
         "Icon": "preferences-desktop-wallpaper",
         "Id": "com.plasma.wallpaper.potd-enhanced",
         "License": "GPLv2+",
@@ -18,12 +18,10 @@
         "BugReportUrl": "https://github.com/itotm/plasma-wallpaper-potd-enhanced/issues"
     },
     "Keywords": [
-        "bing",
         "wallpaper",
         "daily",
         "potd",
-        "picture of the day",
-        "enhanced"
+        "picture of the day"
     ],
     "X-KDE-ParentApp": "org.kde.plasmashell",
     "X-Plasma-API-Minimum-Version": "6.0"

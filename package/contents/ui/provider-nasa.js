@@ -1,71 +1,46 @@
 function buildUrl(market) {
-    return "https://apod.com/feed.rss";
-}
+    var today = new Date();
+    var weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
 
-function stripHtml(html) {
-    return html.replace(/<[^>]*>/g, "").trim();
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+    function formatDate(d) {
+        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+
+    return "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&start_date=" + formatDate(weekAgo) + "&end_date=" + formatDate(today);
 }
 
 function parseResponse(responseText, isPortrait) {
-    // Extract the first <item> block (today's APOD)
-    var itemMatch = responseText.match(/<item>([\s\S]*?)<\/item>/);
-    if (!itemMatch) {
-        return null;
-    }
-    var item = itemMatch[1];
+    var entries = JSON.parse(responseText);
 
-    // Extract image URL from <enclosure> tag
-    var enclosureMatch = item.match(/<enclosure\s[^>]*url="([^"]+)"/);
-    if (!enclosureMatch) {
-        return null;
-    }
-    var imageUrl = enclosureMatch[1];
+    // Walk backwards (newest first) to find the most recent image
+    for (var i = entries.length - 1; i >= 0; i--) {
+        var data = entries[i];
+        if (data.media_type !== "image") {
+            continue;
+        }
 
-    // Extract title from CDATA
-    var title = "";
-    var titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/);
-    if (titleMatch) {
-        title = titleMatch[1].replace(/\s+/g, " ").trim();
-    }
+        var imageUrl = data.hdurl || data.url;
+        var thumbnailUrl = data.url || imageUrl;
 
-    // Extract short description from CDATA
-    var description = "";
-    var descMatch = item.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/);
-    if (descMatch) {
-        description = stripHtml(descMatch[1]).replace(/\s+/g, " ").trim();
-        // Truncate long descriptions
+        var description = data.explanation || "";
         if (description.length > 200) {
             description = description.substring(0, 200).replace(/\s+\S*$/, "") + "…";
         }
+
+        var copyright = (data.copyright || "").replace(/\n/g, ", ").trim();
+
+        return {
+            imageUrl: imageUrl,
+            thumbnailUrl: thumbnailUrl,
+            title: data.title || "",
+            description: description,
+            copyright: copyright,
+            copyrightLink: "https://apod.nasa.gov/apod/",
+            copyrightText: copyright
+        };
     }
 
-    // Extract copyright from dc:creator tags, filtering out editors
-    var creators = [];
-    var creatorRegex = /<dc:creator>([^<]+)<\/dc:creator>/g;
-    var creatorMatch;
-    while ((creatorMatch = creatorRegex.exec(item)) !== null) {
-        var creator = creatorMatch[1].trim();
-        if (creator.indexOf("Robert Nemiroff") === -1 &&
-            creator.indexOf("Jerry Bonnell") === -1) {
-            creators.push(creator);
-        }
-    }
-    var copyright = creators.join(", ");
-
-    // Extract link for copyright URL
-    var link = "";
-    var linkMatch = item.match(/<link>([^<]+)<\/link>/);
-    if (linkMatch) {
-        link = linkMatch[1].trim();
-    }
-
-    return {
-        imageUrl: imageUrl,
-        thumbnailUrl: imageUrl,
-        title: title,
-        description: description,
-        copyright: copyright,
-        copyrightLink: link,
-        copyrightText: copyright
-    };
+    return null;
 }

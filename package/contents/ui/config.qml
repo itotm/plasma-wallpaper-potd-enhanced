@@ -172,6 +172,8 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
+                            { text: "Copernicus", value: "copernicus" },
+                            { text: "Flickr", value: "flickr" },
                             { text: "ESA Hubble PotW", value: "hubble" },
                             { text: "ESA Webb PotM", value: "webb" },
                             { text: "NASA APoD", value: "nasa" },
@@ -190,7 +192,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
-                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb"
+                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus" && cfg_Provider !== "flickr"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"
@@ -224,14 +226,14 @@ Item {
                         }
 
                         Item {
-                            implicitHeight: 162
+                            implicitHeight: 160 + 2 * Kirigami.Units.gridUnit
                             Layout.fillWidth: true
-                            Layout.topMargin: Kirigami.Units.largeSpacing
-                            Layout.bottomMargin: Kirigami.Units.largeSpacing
+                            Layout.topMargin: Kirigami.Units.gridUnit
+                            Layout.bottomMargin: Kirigami.Units.gridUnit
                             visible: currentThumbnailSource !== ""
 
                             Row {
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.centerIn: parent
                                 spacing: Kirigami.Units.smallSpacing
 
                                 Kirigami.ShadowedRectangle {
