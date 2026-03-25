@@ -1,6 +1,5 @@
 .import "provider-bing.js" as BingProvider
 .import "provider-copernicus.js" as CopernicusProvider
-.import "provider-flickr.js" as FlickrProvider
 .import "provider-hubble.js" as HubbleProvider
 .import "provider-nasa.js" as NasaProvider
 .import "provider-spotlight.js" as SpotlightProvider
@@ -16,8 +15,6 @@ function buildUrl(provider, market) {
     switch (provider) {
         case "copernicus":
             return CopernicusProvider.buildUrl(market);
-        case "flickr":
-            return FlickrProvider.buildUrl(market);
         case "hubble":
             return HubbleProvider.buildUrl(market);
         case "nasa":
@@ -37,8 +34,6 @@ function parseResponse(provider, responseText, isPortrait) {
     switch (provider) {
         case "copernicus":
             return CopernicusProvider.parseResponse(responseText, isPortrait);
-        case "flickr":
-            return FlickrProvider.parseResponse(responseText, isPortrait);
         case "hubble":
             return HubbleProvider.parseResponse(responseText, isPortrait);
         case "nasa":

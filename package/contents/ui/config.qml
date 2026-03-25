@@ -173,7 +173,6 @@ Item {
                             model: [
                             { text: "Bing", value: "bing" },
                             { text: "Copernicus", value: "copernicus" },
-                            { text: "Flickr", value: "flickr" },
                             { text: "ESA Hubble PotW", value: "hubble" },
                             { text: "ESA Webb PotM", value: "webb" },
                             { text: "NASA APoD", value: "nasa" },
@@ -192,7 +191,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
-                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus" && cfg_Provider !== "flickr"
+                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"
