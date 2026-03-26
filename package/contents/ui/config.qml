@@ -54,7 +54,6 @@ Item {
                                     {
                                         market = Utils.detectMarket();
                                     }
-                                    cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
                                     cfg_CachedResponse = "";
                                     cfg_CachedProvider = "";
                                     var url = Providers.buildUrl(provider, market);
@@ -87,6 +86,7 @@ Item {
                                             cfg_LastCopyrightLink = result.copyrightLink;
                                             cfg_CachedResponse = xhr.responseText;
                                             cfg_CachedProvider = provider;
+                                            cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
                                         } catch (e) {
                                             console.log("PotD Enhanced config: Preview parse error: " + e);
                                         }

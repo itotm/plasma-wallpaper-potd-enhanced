@@ -46,15 +46,14 @@ WallpaperItem {
 
                                                             function loadFallbackImage()
                                                             {
-                                                                if (lastValidImagePath !== "")
-                                                                {
-                                                                    log("Using last valid cached image");
-                                                                    main.currentUrl = lastValidImagePath;
+                                                                var fallback = lastValidImagePath !== "" ? lastValidImagePath : "blackscreen.jpg";
+                                                                log("Using fallback image: " + fallback);
+                                                                if (main.currentUrl.toString() === fallback) {
+                                                                    loadImage();
                                                                 } else {
-                                                                main.currentUrl = "blackscreen.jpg";
+                                                                    main.currentUrl = fallback;
+                                                                }
                                                             }
-                                                            loadImage();
-                                                        }
 
                                                         function showErrorNotification(text)
                                                         {
@@ -79,7 +78,6 @@ WallpaperItem {
                                                             return;
                                                         }
                                                         isLoading = true;
-                                                        lastLoadedUrl = "";
                                                         fetchImage(main.retryRequestCount);
                                                     }
 
@@ -125,8 +123,15 @@ WallpaperItem {
                                                     }
 
                                                     consecutiveErrors = 0;
+                                                    var oldUrl = main.currentUrl.toString();
                                                     main.currentUrl = result.imageUrl;
                                                     wallpaper.configuration.writeConfig();
+                                                    // If URL didn't change, onCurrentUrlChanged won't fire,
+                                                    // so loadImage() won't be called — reset isLoading here
+                                                    if (main.currentUrl.toString() === oldUrl) {
+                                                        log("URL unchanged after fetch, resetting state");
+                                                        isLoading = false;
+                                                    }
                                                 }
 
                                                 function fetchImage(retries)
@@ -225,6 +230,7 @@ WallpaperItem {
                     anchors.fill: parent
                     onCurrentUrlChanged: loadImage()
                     onRefreshSignalChanged: Qt.callLater(refreshImage)
+                    onProviderChanged: if (_initialRefreshDone) Qt.callLater(refreshImage)
                     onWidthChanged: _tryInitialRefresh()
                     onHeightChanged: _tryInitialRefresh()
                     Component.onCompleted: {
@@ -232,6 +238,7 @@ WallpaperItem {
                             main.currentUrl = lastValidImagePath;
                         }
                         _tryInitialRefresh();
+                        startupRefreshTimer.start();
                     }
 
                     function _tryInitialRefresh() {
@@ -283,6 +290,19 @@ WallpaperItem {
                             if (isLoading) {
                                 log("Loading timeout - resetting isLoading flag");
                                 isLoading = false;
+                            }
+                        }
+                    }
+
+                    Timer {
+                        id: startupRefreshTimer
+                        interval: 5000
+                        repeat: false
+                        onTriggered: {
+                            if (!_initialRefreshDone) {
+                                log("Startup fallback: forcing initial refresh");
+                                _initialRefreshDone = true;
+                                refreshImage();
                             }
                         }
                     }
