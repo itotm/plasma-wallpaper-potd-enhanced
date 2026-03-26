@@ -20,6 +20,7 @@ import "providers.js" as Providers
 WallpaperItem {
     id: main
 
+    loading: false
     property url currentUrl
     readonly property int fillMode: Image.PreserveAspectCrop
         readonly property bool refreshSignal: main.configuration.RefetchSignal
