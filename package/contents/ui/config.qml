@@ -40,6 +40,8 @@ Item {
             property string cfg_CachedResponse
             property string cfg_CachedProvider
 
+            property bool isFetchingPreview: false
+
             readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
                 readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
                     readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
@@ -56,6 +58,7 @@ Item {
                                     }
                                     cfg_CachedResponse = "";
                                     cfg_CachedProvider = "";
+                                    isFetchingPreview = true;
                                     var url = Providers.buildUrl(provider, market);
                                     console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
 
@@ -64,6 +67,7 @@ Item {
                                         if (xhr.status !== 200)
                                         {
                                             console.log("PotD Enhanced config: Preview fetch failed: " + xhr.status);
+                                            isFetchingPreview = false;
                                             return;
                                         }
                                         try {
@@ -87,12 +91,15 @@ Item {
                                             cfg_CachedResponse = xhr.responseText;
                                             cfg_CachedProvider = provider;
                                             cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+                                            isFetchingPreview = false;
                                         } catch (e) {
                                             console.log("PotD Enhanced config: Preview parse error: " + e);
+                                            isFetchingPreview = false;
                                         }
                                     };
                                     xhr.onerror = function() {
                                         console.log("PotD Enhanced config: Preview request error");
+                                        isFetchingPreview = false;
                                     };
                                     xhr.open("GET", url);
                                     xhr.setRequestHeader("User-Agent", "PotDEnhanced/1.0 (KDE Plasma Wallpaper; https://github.com)");
@@ -262,8 +269,8 @@ Item {
 
                                     MouseArea {
                                         anchors.fill: parent
-                                        cursorShape: currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: openCopyrightLink()
+                                        cursorShape: isFetchingPreview ? Qt.BusyCursor : (currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor)
+                                        onClicked: if (!isFetchingPreview) openCopyrightLink()
                                     }
                                 }
 

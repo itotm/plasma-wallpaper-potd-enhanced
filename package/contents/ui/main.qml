@@ -323,12 +323,6 @@ WallpaperItem {
 
                         anchors.fill: parent
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: isLoading ? Qt.BusyCursor : Qt.ArrowCursor
-                            acceptedButtons: Qt.NoButton
-                        }
-
                         Component {
                             id: mainImage
 
