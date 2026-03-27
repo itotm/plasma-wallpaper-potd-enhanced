@@ -39,6 +39,7 @@ WallpaperItem {
                                                     property string parsedCopyright: main.configuration.LastParsedCopyright || ""
                                                         property int consecutiveErrors: 0
                                                         property bool _initialRefreshDone: false
+                                                        readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
                                                             function log(msg)
                                                             {
@@ -124,6 +125,7 @@ WallpaperItem {
                                                     }
 
                                                     consecutiveErrors = 0;
+                                                    main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
                                                     var oldUrl = main.currentUrl.toString();
                                                     main.currentUrl = result.imageUrl;
                                                     wallpaper.configuration.writeConfig();
@@ -246,7 +248,13 @@ WallpaperItem {
                         if (_initialRefreshDone) return;
                         if (main.width > 0 && main.height > 0) {
                             _initialRefreshDone = true;
-                            Qt.callLater(refreshImage);
+                            var today = new Date().toISOString().substring(0, 10);
+                            if (lastFetchDate !== today) {
+                                log("Date changed (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
+                                Qt.callLater(refreshImage);
+                            } else {
+                                log("Already fetched today (" + today + ") - skipping startup refresh");
+                            }
                         }
                     }
                     onIsLoadingChanged: {
@@ -301,9 +309,14 @@ WallpaperItem {
                         repeat: false
                         onTriggered: {
                             if (!_initialRefreshDone) {
-                                log("Startup fallback: forcing initial refresh");
                                 _initialRefreshDone = true;
-                                refreshImage();
+                                var today = new Date().toISOString().substring(0, 10);
+                                if (lastFetchDate !== today) {
+                                    log("Startup fallback: date changed - refreshing");
+                                    refreshImage();
+                                } else {
+                                    log("Startup fallback: already fetched today - skipping");
+                                }
                             }
                         }
                     }

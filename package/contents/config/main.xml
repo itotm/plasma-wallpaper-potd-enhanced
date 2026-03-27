@@ -5,18 +5,6 @@
   <kcfgfile name=""/>
 
   <group name="General">
-    <entry name="Blur" type="bool">
-      <label>Blur background filling</label>
-      <default>false</default>
-    </entry>
-    <entry name="Color" type="Color">
-      <label>Color of the wallpaper</label>
-      <default>#000000</default>
-    </entry>
-    <entry name="FillMode" type="int">
-      <label>Sizing, cropping and positioning of the wallpaper image</label>
-      <default>2</default>
-    </entry>
     <entry name="Provider" type="String">
       <label>Image provider (e.g. bing)</label>
       <default>bing</default>
@@ -79,6 +67,10 @@
     </entry>
     <entry name="CachedProvider" type="String">
       <label>Provider of the cached response</label>
+      <default></default>
+    </entry>
+    <entry name="LastFetchDate" type="String">
+      <label>Date of the last successful wallpaper fetch (YYYY-MM-DD)</label>
       <default></default>
     </entry>
   </group>
