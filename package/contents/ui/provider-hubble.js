@@ -2,6 +2,30 @@ function buildUrl(market) {
     return "https://feeds.feedburner.com/esahubble/images/potw/";
 }
 
+function buildFallbackUrl(market) {
+    return "https://esahubble.org/images/potw/";
+}
+
+function parseFallbackResponse(responseText, isPortrait) {
+    // Extract the latest PotW image ID from the HTML listing page
+    var match = responseText.match(/\/(potw\d{4}a)\//);
+    if (!match) return null;
+
+    var id = match[1];
+    var imageUrl = "https://cdn.esahubble.org/archives/images/large/" + id + ".jpg";
+    var thumbnailUrl = "https://cdn.esahubble.org/archives/images/screen/" + id + ".jpg";
+
+    return {
+        imageUrl: imageUrl,
+        thumbnailUrl: thumbnailUrl,
+        title: "",
+        description: "",
+        copyright: "ESA/Hubble",
+        copyrightLink: "https://esahubble.org/images/" + id + "/",
+        copyrightText: "ESA/Hubble"
+    };
+}
+
 function stripHtml(html) {
     return html.replace(/<[^>]*>/g, "").trim();
 }

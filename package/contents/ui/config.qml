@@ -39,6 +39,8 @@ Item {
 
             property string cfg_CachedResponse
             property string cfg_CachedProvider
+            property string cfg_ProviderCache
+            property int cfg_CacheRetentionDays
 
             property bool isFetchingPreview: false
 
@@ -56,55 +58,94 @@ Item {
                                     {
                                         market = Utils.detectMarket();
                                     }
+
+                                    // Check per-provider cache (skip for Spotlight — each call returns a different image)
+                                    if (provider !== "spotlight") {
+                                        var cacheJson = wallpaperConfiguration
+                                            ? (wallpaperConfiguration.ProviderCache || cfg_ProviderCache || "{}")
+                                            : (cfg_ProviderCache || "{}");
+                                        var cached = Utils.getProviderCache(cacheJson, provider, cfg_CacheRetentionDays);
+                                        if (cached) {
+                                            console.log("PotD Enhanced config: Using cached preview for " + provider);
+                                            _applyPreviewResult(cached, "", provider, true);
+                                            return;
+                                        }
+                                    }
+
                                     cfg_CachedResponse = "";
                                     cfg_CachedProvider = "";
                                     isFetchingPreview = true;
                                     var url = Providers.buildUrl(provider, market);
                                     console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
+                                    _fetchPreviewFromUrl(provider, market, url, false);
+                                }
 
-                                    var xhr = new XMLHttpRequest();
-                                    xhr.onload = function() {
-                                        if (xhr.status !== 200)
-                                        {
-                                            console.log("PotD Enhanced config: Preview fetch failed: " + xhr.status);
-                                            isFetchingPreview = false;
-                                            return;
-                                        }
+                                function _applyPreviewResult(result, responseText, provider, isFallback)
+                                {
+                                    previewThumbnail = result.thumbnailUrl;
+                                    previewTitle = result.title;
+                                    previewDescription = result.description;
+                                    previewParsedCopyright = result.copyright;
+                                    previewCopyrightLink = result.copyrightLink;
+                                    hasPreview = true;
+
+                                    cfg_currentWallpaperThumbnail = result.thumbnailUrl;
+                                    cfg_LastTitle = result.title;
+                                    cfg_LastDescription = result.description;
+                                    cfg_LastParsedCopyright = result.copyright;
+                                    cfg_LastCopyrightLink = result.copyrightLink;
+                                    if (!isFallback) {
+                                        cfg_CachedResponse = responseText;
+                                        cfg_CachedProvider = provider;
+                                    }
+                                    cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+                                    isFetchingPreview = false;
+                                }
+
+                                function _fetchPreviewFromUrl(provider, market, url, isFallback)
+                                {
+                                    Utils.httpGet(url, function(responseText) {
                                         try {
-                                            var result = Providers.parseResponse(provider, xhr.responseText, false);
-                                            if (!result)
-                                            {
+                                            var result = isFallback
+                                                ? Providers.parseFallbackResponse(provider, responseText, false)
+                                                : Providers.parseResponse(provider, responseText, false);
+                                            if (!result) {
+                                                if (!isFallback) {
+                                                    var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                                                    if (fallbackUrl) {
+                                                        console.log("PotD Enhanced config: No result from primary, trying fallback: " + fallbackUrl);
+                                                        _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                                                        return;
+                                                    }
+                                                }
+                                                isFetchingPreview = false;
                                                 return;
                                             }
-                                            previewThumbnail = result.thumbnailUrl;
-                                            previewTitle = result.title;
-                                            previewDescription = result.description;
-                                            previewParsedCopyright = result.copyright;
-                                            previewCopyrightLink = result.copyrightLink;
-                                            hasPreview = true;
-
-                                            cfg_currentWallpaperThumbnail = result.thumbnailUrl;
-                                            cfg_LastTitle = result.title;
-                                            cfg_LastDescription = result.description;
-                                            cfg_LastParsedCopyright = result.copyright;
-                                            cfg_LastCopyrightLink = result.copyrightLink;
-                                            cfg_CachedResponse = xhr.responseText;
-                                            cfg_CachedProvider = provider;
-                                            cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
-                                            isFetchingPreview = false;
+                                            _applyPreviewResult(result, responseText, provider, isFallback);
                                         } catch (e) {
                                             console.log("PotD Enhanced config: Preview parse error: " + e);
+                                            if (!isFallback) {
+                                                var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                                                if (fallbackUrl) {
+                                                    console.log("PotD Enhanced config: Parse failed, trying fallback: " + fallbackUrl);
+                                                    _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                                                    return;
+                                                }
+                                            }
                                             isFetchingPreview = false;
                                         }
-                                    };
-                                    xhr.onerror = function() {
-                                        console.log("PotD Enhanced config: Preview request error");
+                                    }, function(errorText) {
+                                        console.log("PotD Enhanced config: Preview fetch failed: " + errorText);
+                                        if (!isFallback) {
+                                            var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                                            if (fallbackUrl) {
+                                                console.log("PotD Enhanced config: Trying fallback: " + fallbackUrl);
+                                                _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                                                return;
+                                            }
+                                        }
                                         isFetchingPreview = false;
-                                    };
-                                    xhr.open("GET", url);
-                                    xhr.setRequestHeader("User-Agent", "PotDEnhanced/1.0 (KDE Plasma Wallpaper; https://github.com)");
-                                    xhr.timeout = 30000;
-                                    xhr.send();
+                                    });
                                 }
 
                                 property bool _syncing: false

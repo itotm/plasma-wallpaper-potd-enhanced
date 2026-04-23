@@ -73,6 +73,14 @@
       <label>Date of the last successful wallpaper fetch (YYYY-MM-DD)</label>
       <default></default>
     </entry>
+    <entry name="ProviderCache" type="String">
+      <label>Per-provider cached image data (JSON)</label>
+      <default>{}</default>
+    </entry>
+    <entry name="CacheRetentionDays" type="int">
+      <label>Days to retain cached provider images</label>
+      <default>7</default>
+    </entry>
   </group>
 
 </kcfg>

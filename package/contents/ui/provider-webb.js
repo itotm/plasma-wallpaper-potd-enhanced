@@ -1,4 +1,8 @@
 function buildUrl(market) {
+    return "https://esawebb.org/images/potm/feed/";
+}
+
+function buildFallbackUrl(market) {
     return "https://feeds.feedburner.com/esawebb/potm/";
 }
 

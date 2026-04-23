@@ -9,6 +9,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import QtQuick.Dialogs
 import QtQuick.Window
 import org.kde.kirigami 2.20 as Kirigami
 import org.kde.notification 1.0
@@ -25,8 +26,8 @@ WallpaperItem {
     readonly property int fillMode: Image.PreserveAspectCrop
         readonly property bool refreshSignal: main.configuration.RefetchSignal
             readonly property string provider: main.configuration.Provider || "bing"
-                readonly property int retryRequestCount: main.configuration.RetryRequestCount
                     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
+                        readonly property int cacheRetentionDays: main.configuration.CacheRetentionDays
                         readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
                         property Item pendingImage
                         readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
@@ -39,6 +40,7 @@ WallpaperItem {
                                                     property string parsedCopyright: main.configuration.LastParsedCopyright || ""
                                                         property int consecutiveErrors: 0
                                                         property bool _initialRefreshDone: false
+                                                        property bool _triedFallback: false
                                                         readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
                                                             function log(msg)
@@ -46,15 +48,11 @@ WallpaperItem {
                                                                 console.log("PotD Enhanced: " + msg);
                                                             }
 
-                                                            function loadFallbackImage()
+                                                            function showFetchErrorDialog()
                                                             {
-                                                                var fallback = lastValidImagePath !== "" ? lastValidImagePath : "blackscreen.jpg";
-                                                                log("Using fallback image: " + fallback);
-                                                                if (main.currentUrl.toString() === fallback) {
-                                                                    loadImage();
-                                                                } else {
-                                                                    main.currentUrl = fallback;
-                                                                }
+                                                                var provName = provider.charAt(0).toUpperCase() + provider.slice(1);
+                                                                errorDialog.text = "Failed to fetch " + provName;
+                                                                errorDialog.open();
                                                             }
 
                                                         function showErrorNotification(text)
@@ -80,25 +78,51 @@ WallpaperItem {
                                                             return;
                                                         }
                                                         isLoading = true;
-                                                        fetchImage(main.retryRequestCount);
+                                                        _triedFallback = false;
+                                                        fetchImage();
                                                     }
 
-                                                    function handleRequestError(retries, errorText)
+                                                    function _handleFetchError(errorText)
                                                     {
-                                                        let msg = "";
-                                                        if (retries > 0)
-                                                        {
-                                                            msg = "Retrying in " + main.retryRequestDelay + " seconds...";
-                                                            log(msg);
-                                                            retryTimer.retries = retries;
-                                                            retryTimer.start();
-                                                        } else {
-                                                        msg = "Request failed" + (errorText ? ": " + errorText : "");
+                                                        if (!_triedFallback) {
+                                                            var prov = main.configuration.Provider || "bing";
+                                                            var mkt = main.configuration.Market;
+                                                            if (!mkt || mkt === "") mkt = Utils.detectMarket();
+                                                            var fallbackUrl = Providers.buildFallbackUrl(prov, mkt);
+                                                            if (fallbackUrl) {
+                                                                _triedFallback = true;
+                                                                log("Primary URL failed, trying fallback: " + fallbackUrl);
+                                                                _fetchFromFallbackUrl(fallbackUrl);
+                                                                return;
+                                                            }
+                                                        }
+                                                        var msg = "Request failed" + (errorText ? ": " + errorText : "");
                                                         log(msg);
                                                         showErrorNotification(msg);
-                                                        loadFallbackImage();
                                                         isLoading = false;
+                                                        showFetchErrorDialog();
                                                     }
+
+                                                function _fetchFromFallbackUrl(url)
+                                                {
+                                                    var prov = main.configuration.Provider || "bing";
+                                                    log("Fetching fallback from " + prov + ": " + url);
+
+                                                    Utils.httpGet(url, function(responseText) {
+                                                        try {
+                                                            var isPortrait = main.height > main.width;
+                                                            var result = Providers.parseFallbackResponse(prov, responseText, isPortrait);
+                                                            if (!result) {
+                                                                _handleFetchError("No image in fallback response");
+                                                                return;
+                                                            }
+                                                            applyFetchResult(result);
+                                                        } catch (e) {
+                                                            _handleFetchError("Fallback parse error: " + e);
+                                                        }
+                                                    }, function(errorText) {
+                                                        _handleFetchError(errorText);
+                                                    }, { retryDelay: main.retryRequestDelay * 1000 });
                                                 }
 
                                                 function applyFetchResult(result)
@@ -116,6 +140,11 @@ WallpaperItem {
                                                     main.configuration.LastParsedCopyright = parsedCopyright;
                                                     main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
 
+                                                    // Update per-provider cache
+                                                    var prov = main.configuration.Provider || "bing";
+                                                    main.configuration.ProviderCache = Utils.setProviderCache(
+                                                        main.configuration.ProviderCache, prov, result, cacheRetentionDays);
+
                                                     if (result.imageUrl === lastLoadedUrl)
                                                     {
                                                         log("Same image as current, skipping load");
@@ -125,7 +154,6 @@ WallpaperItem {
                                                     }
 
                                                     consecutiveErrors = 0;
-                                                    main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
                                                     var oldUrl = main.currentUrl.toString();
                                                     main.currentUrl = result.imageUrl;
                                                     wallpaper.configuration.writeConfig();
@@ -137,7 +165,7 @@ WallpaperItem {
                                                     }
                                                 }
 
-                                                function fetchImage(retries)
+                                                function fetchImage()
                                                 {
                                                     var provider = main.configuration.Provider || "bing";
 
@@ -168,36 +196,21 @@ WallpaperItem {
                                                     var url = Providers.buildUrl(provider, market);
                                                     log("Fetching from " + provider + ": " + url);
 
-                                                    var xhr = new XMLHttpRequest();
-                                                    xhr.onload = function() {
-                                                    if (xhr.status !== 200)
-                                                    {
-                                                        handleRequestError(retries, xhr.responseText);
-                                                        return;
-                                                    }
-                                                    try {
-                                                        var isPortrait = main.height > main.width;
-                                                        var result = Providers.parseResponse(provider, xhr.responseText, isPortrait);
-                                                        if (!result)
-                                                        {
-                                                            handleRequestError(retries, "No image in response");
-                                                            return;
+                                                    Utils.httpGet(url, function(responseText) {
+                                                        try {
+                                                            var isPortrait = main.height > main.width;
+                                                            var result = Providers.parseResponse(provider, responseText, isPortrait);
+                                                            if (!result) {
+                                                                _handleFetchError("No image in response");
+                                                                return;
+                                                            }
+                                                            applyFetchResult(result);
+                                                        } catch (e) {
+                                                            _handleFetchError("Parse error: " + e);
                                                         }
-                                                        applyFetchResult(result);
-                                                    } catch (e) {
-                                                    handleRequestError(retries, "Parse error: " + e);
-                                                }
-                                            };
-                                            xhr.onerror = function() {
-                                            handleRequestError(retries, null);
-                                        };
-                                        xhr.ontimeout = function() {
-                                        handleRequestError(retries, "Request timed out");
-                                    };
-                                    xhr.open("GET", url);
-                                    xhr.setRequestHeader("User-Agent", "PotDEnhanced/1.0 (KDE Plasma Wallpaper; https://github.com)");
-                                    xhr.timeout = 30000;
-                                    xhr.send();
+                                                    }, function(errorText) {
+                                                        _handleFetchError(errorText);
+                                                    }, { retryDelay: main.retryRequestDelay * 1000 });
                                 }
 
                                 function loadImage()
@@ -233,13 +246,25 @@ WallpaperItem {
                     anchors.fill: parent
                     onCurrentUrlChanged: loadImage()
                     onRefreshSignalChanged: Qt.callLater(refreshImage)
-                    onProviderChanged: if (_initialRefreshDone) Qt.callLater(refreshImage)
+                    onProviderChanged: {
+                        if (_initialRefreshDone) {
+                            if (isLoading) return;
+                            // Clear current image to show black background while loading
+                            root.clear();
+                            var cached = Utils.getProviderCache(
+                                main.configuration.ProviderCache, provider, cacheRetentionDays);
+                            if (cached) {
+                                log("Provider switched: using cache for " + provider);
+                                isLoading = true;
+                                applyFetchResult(cached);
+                            } else {
+                                Qt.callLater(refreshImage);
+                            }
+                        }
+                    }
                     onWidthChanged: _tryInitialRefresh()
                     onHeightChanged: _tryInitialRefresh()
                     Component.onCompleted: {
-                        if (lastValidImagePath !== "") {
-                            main.currentUrl = lastValidImagePath;
-                        }
                         _tryInitialRefresh();
                         startupRefreshTimer.start();
                     }
@@ -249,8 +274,8 @@ WallpaperItem {
                         if (main.width > 0 && main.height > 0) {
                             _initialRefreshDone = true;
                             var today = new Date().toISOString().substring(0, 10);
-                            if (lastFetchDate !== today) {
-                                log("Date changed (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
+                            if (provider === "spotlight" || lastFetchDate !== today) {
+                                log("Date changed or Spotlight provider (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
                                 Qt.callLater(refreshImage);
                             } else {
                                 log("Already fetched today (" + today + ") - skipping startup refresh");
@@ -282,23 +307,18 @@ WallpaperItem {
                     ]
 
                     Timer {
-                        id: retryTimer
-
-                        property int retries
-
-                        interval: main.retryRequestDelay * 1000
-                        repeat: false
-                        onTriggered: fetchImage(retryTimer.retries - 1)
-                    }
-
-                    Timer {
                         id: loadingTimeoutTimer
                         interval: 60000
                         repeat: false
                         onTriggered: {
                             if (isLoading) {
-                                log("Loading timeout - resetting isLoading flag");
+                                log("Loading timeout - destroying pending image");
+                                if (main.pendingImage) {
+                                    main.pendingImage.destroy();
+                                    main.pendingImage = null;
+                                }
                                 isLoading = false;
+                                showFetchErrorDialog();
                             }
                         }
                     }
@@ -332,10 +352,25 @@ WallpaperItem {
                         }
                     }
 
+                    MessageDialog {
+                        id: errorDialog
+                        title: "PotD Enhanced"
+                        buttons: MessageDialog.Retry | MessageDialog.Ok
+                        onButtonClicked: function(button) {
+                            if (button === MessageDialog.Retry) {
+                                Qt.callLater(refreshImage);
+                            }
+                        }
+                    }
+
                     QQC2.StackView {
                         id: root
 
                         anchors.fill: parent
+
+                        background: Rectangle {
+                            color: "black"
+                        }
 
                         Component {
                             id: mainImage
@@ -344,7 +379,7 @@ WallpaperItem {
                                 id: imageItem
 
                                 asynchronous: true
-                                cache: false
+                                cache: true
                                 autoTransform: true
                                 smooth: true
                                 onStatusChanged: {
@@ -358,8 +393,10 @@ WallpaperItem {
                                             imageItem.destroy();
                                         }
                                         isLoading = false;
+                                        showFetchErrorDialog();
                                     } else if (status === Image.Ready) {
                                     log("Image loaded successfully");
+                                    main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
                                     if (Utils.isHttpUrl(source))
                                     {
                                         main.configuration.lastValidImagePath = source.toString();

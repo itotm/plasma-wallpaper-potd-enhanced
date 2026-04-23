@@ -48,3 +48,25 @@ function parseResponse(provider, responseText, isPortrait) {
             return BingProvider.parseResponse(responseText, isPortrait);
     }
 }
+
+function buildFallbackUrl(provider, market) {
+    switch (provider) {
+        case "hubble":
+            return HubbleProvider.buildFallbackUrl(market);
+        case "webb":
+            return WebbProvider.buildFallbackUrl(market);
+        default:
+            return null;
+    }
+}
+
+function parseFallbackResponse(provider, responseText, isPortrait) {
+    switch (provider) {
+        case "hubble":
+            return HubbleProvider.parseFallbackResponse(responseText, isPortrait);
+        default:
+            // For providers without a custom fallback parser (e.g. Webb),
+            // the fallback feed has the same format as the primary.
+            return parseResponse(provider, responseText, isPortrait);
+    }
+}

@@ -11,13 +11,13 @@ function parseResponse(responseText, isPortrait) {
 
         // Only consider image-of-the-day gallery entries
         var linkMatch = item.match(/<link>([^<]+)<\/link>/);
-        if (!linkMatch || linkMatch[1].indexOf("/media/image-day-gallery/") === -1)
+        if (!linkMatch || linkMatch[1].indexOf("/media/image-day") === -1)
             continue;
 
         var link = linkMatch[1].trim();
 
         var title = "";
-        var titleMatch = item.match(/<title>([^<]+)<\/title>/);
+        var titleMatch = item.match(/<title>(?:<!\[CDATA\[)?([^<\]]+)(?:\]\]>)?<\/title>/);
         if (titleMatch)
             title = titleMatch[1].trim();
 
@@ -26,12 +26,38 @@ function parseResponse(responseText, isPortrait) {
         if (descMatch)
             descBlock = descMatch[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
 
-        // Full-size image URL from image_of_the_day style path with itok
-        var imgMatch = descBlock.match(/\/system\/files\/styles\/image_of_the_day\/private\/[^\s"<>&]+\?itok=[^\s"<>&]+/);
-        if (!imgMatch)
-            continue;
+        // Try multiple patterns to find the image URL, ordered from most to least specific:
+        var imageUrl = "";
 
-        var imageUrl = "https://www.copernicus.eu" + imgMatch[0];
+        // 1. image_of_the_day style path with itok (inside or outside HTML)
+        var imgMatch = descBlock.match(/\/system\/files\/styles\/image_of_the_day\/private\/[^\s"<>&]+\?itok=[^\s"<>&]+/);
+        if (imgMatch) {
+            imageUrl = "https://www.copernicus.eu" + imgMatch[0];
+        }
+
+        // 2. Any /system/files/ path with image extension
+        if (!imageUrl) {
+            imgMatch = descBlock.match(/\/system\/files\/[^\s"<>&]+\.(?:png|jpg|jpeg)[^\s"<>&]*/);
+            if (imgMatch)
+                imageUrl = "https://www.copernicus.eu" + imgMatch[0];
+        }
+
+        // 3. Full URL to copernicus.eu image
+        if (!imageUrl) {
+            imgMatch = descBlock.match(/https:\/\/www\.copernicus\.eu\/[^\s"<>]+\.(?:png|jpg|jpeg)[^\s"<>]*/);
+            if (imgMatch)
+                imageUrl = imgMatch[0];
+        }
+
+        // 4. Any <img src="..."> in the description
+        if (!imageUrl) {
+            imgMatch = descBlock.match(/<img[^>]+src="([^"]+)"/);
+            if (imgMatch)
+                imageUrl = imgMatch[1];
+        }
+
+        if (!imageUrl)
+            continue;
 
         // Description from the ec-content div
         var description = "";
@@ -42,9 +68,11 @@ function parseResponse(responseText, isPortrait) {
                 description = description.substring(0, 200).replace(/\s+\S*$/, "") + "…";
         }
 
-        // Credit line
-        var creditMatch = descBlock.match(/European Union[^<\n]+/);
-        var copyright = creditMatch ? creditMatch[0].trim() : "European Union, Copernicus";
+        // Credit line: try specific pattern first, then fallback
+        var copyright = "European Union, Copernicus";
+        var creditMatch = descBlock.match(/European Union[^<\n]{0,100}/);
+        if (creditMatch)
+            copyright = creditMatch[0].trim();
 
         return {
             imageUrl: imageUrl,
