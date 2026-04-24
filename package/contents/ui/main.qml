@@ -251,10 +251,11 @@ WallpaperItem {
                             if (isLoading) return;
                             // Clear current image to show black background while loading
                             root.clear();
+                            var today = new Date().toISOString().substring(0, 10);
                             var cached = Utils.getProviderCache(
                                 main.configuration.ProviderCache, provider, cacheRetentionDays);
-                            if (cached) {
-                                log("Provider switched: using cache for " + provider);
+                            if (cached && cached.fetchDate === today) {
+                                log("Provider switched: using today's cache for " + provider);
                                 isLoading = true;
                                 applyFetchResult(cached);
                             } else {
@@ -276,7 +277,7 @@ WallpaperItem {
                             var today = new Date().toISOString().substring(0, 10);
                             if (provider === "spotlight" || lastFetchDate !== today) {
                                 log("Date changed or Spotlight provider (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
-                                Qt.callLater(refreshImage);
+                                refreshImage();
                             } else {
                                 log("Already fetched today (" + today + ") - skipping startup refresh");
                             }
@@ -331,7 +332,7 @@ WallpaperItem {
                             if (!_initialRefreshDone) {
                                 _initialRefreshDone = true;
                                 var today = new Date().toISOString().substring(0, 10);
-                                if (lastFetchDate !== today) {
+                                if (provider === "spotlight" || lastFetchDate !== today) {
                                     log("Startup fallback: date changed - refreshing");
                                     refreshImage();
                                 } else {
