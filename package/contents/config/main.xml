@@ -61,25 +61,9 @@
       <label>Copyright holder parsed from the copyright text (inside parentheses)</label>
       <default></default>
     </entry>
-    <entry name="CachedResponse" type="String">
-      <label>Cached API response from config preview</label>
-      <default></default>
-    </entry>
-    <entry name="CachedProvider" type="String">
-      <label>Provider of the cached response</label>
-      <default></default>
-    </entry>
     <entry name="LastFetchDate" type="String">
       <label>Date of the last successful wallpaper fetch (YYYY-MM-DD)</label>
       <default></default>
-    </entry>
-    <entry name="ProviderCache" type="String">
-      <label>Per-provider cached image data (JSON)</label>
-      <default>{}</default>
-    </entry>
-    <entry name="CacheRetentionDays" type="int">
-      <label>Days to retain cached provider images</label>
-      <default>7</default>
     </entry>
   </group>
 

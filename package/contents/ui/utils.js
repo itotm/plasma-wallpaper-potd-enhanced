@@ -94,52 +94,6 @@ function httpGet(url, onSuccess, onError, opts) {
     attempt(maxRetries);
 }
 
-/**
- * Read a cached provider result. Returns the entry object or null if missing/expired.
- */
-function getProviderCache(cacheJson, provider, retentionDays) {
-    try {
-        var cache = JSON.parse(cacheJson || "{}");
-        var entry = cache[provider];
-        if (!entry || !entry.imageUrl || !entry.fetchDate) return null;
-        var diffDays = (new Date() - new Date(entry.fetchDate + "T00:00:00")) / 86400000;
-        if (diffDays > retentionDays) return null;
-        return entry;
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * Write a provider result to cache and purge expired entries.
- * Returns the updated JSON string.
- */
-function setProviderCache(cacheJson, provider, result, retentionDays) {
-    try {
-        var cache = JSON.parse(cacheJson || "{}");
-        cache[provider] = {
-            imageUrl: result.imageUrl,
-            thumbnailUrl: result.thumbnailUrl,
-            title: result.title,
-            description: result.description,
-            copyright: result.copyright,
-            copyrightLink: result.copyrightLink,
-            copyrightText: result.copyrightText,
-            fetchDate: new Date().toISOString().substring(0, 10)
-        };
-        var now = new Date();
-        for (var key in cache) {
-            if (cache[key].fetchDate) {
-                if ((now - new Date(cache[key].fetchDate + "T00:00:00")) / 86400000 > retentionDays)
-                    delete cache[key];
-            }
-        }
-        return JSON.stringify(cache);
-    } catch (e) {
-        return cacheJson;
-    }
-}
-
 // Internal: schedule a callback after delayMs using a Timer component.
 // Falls back to immediate call if Qt.createQmlObject is unavailable.
 function _delay(delayMs, callback) {

@@ -37,11 +37,6 @@ Item {
             property string previewCopyrightLink: ""
             property bool hasPreview: false
 
-            property string cfg_CachedResponse
-            property string cfg_CachedProvider
-            property string cfg_ProviderCache
-            property int cfg_CacheRetentionDays
-
             property bool isFetchingPreview: false
 
             readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
@@ -59,21 +54,6 @@ Item {
                                         market = Utils.detectMarket();
                                     }
 
-                                    // Check per-provider cache (skip for Spotlight — each call returns a different image)
-                                    if (provider !== "spotlight") {
-                                        var cacheJson = wallpaperConfiguration
-                                            ? (wallpaperConfiguration.ProviderCache || cfg_ProviderCache || "{}")
-                                            : (cfg_ProviderCache || "{}");
-                                        var cached = Utils.getProviderCache(cacheJson, provider, cfg_CacheRetentionDays);
-                                        if (cached) {
-                                            console.log("PotD Enhanced config: Using cached preview for " + provider);
-                                            _applyPreviewResult(cached, "", provider, true);
-                                            return;
-                                        }
-                                    }
-
-                                    cfg_CachedResponse = "";
-                                    cfg_CachedProvider = "";
                                     isFetchingPreview = true;
                                     var url = Providers.buildUrl(provider, market);
                                     console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
@@ -94,10 +74,6 @@ Item {
                                     cfg_LastDescription = result.description;
                                     cfg_LastParsedCopyright = result.copyright;
                                     cfg_LastCopyrightLink = result.copyrightLink;
-                                    if (!isFallback) {
-                                        cfg_CachedResponse = responseText;
-                                        cfg_CachedProvider = provider;
-                                    }
                                     cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
                                     isFetchingPreview = false;
                                 }

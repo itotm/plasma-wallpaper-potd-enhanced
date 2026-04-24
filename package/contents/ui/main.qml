@@ -27,7 +27,6 @@ WallpaperItem {
         readonly property bool refreshSignal: main.configuration.RefetchSignal
             readonly property string provider: main.configuration.Provider || "bing"
                     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
-                        readonly property int cacheRetentionDays: main.configuration.CacheRetentionDays
                         readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
                         property Item pendingImage
                         readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
@@ -140,11 +139,6 @@ WallpaperItem {
                                                     main.configuration.LastParsedCopyright = parsedCopyright;
                                                     main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
 
-                                                    // Update per-provider cache
-                                                    var prov = main.configuration.Provider || "bing";
-                                                    main.configuration.ProviderCache = Utils.setProviderCache(
-                                                        main.configuration.ProviderCache, prov, result, cacheRetentionDays);
-
                                                     if (result.imageUrl === lastLoadedUrl)
                                                     {
                                                         log("Same image as current, skipping load");
@@ -168,28 +162,6 @@ WallpaperItem {
                                                 function fetchImage()
                                                 {
                                                     var provider = main.configuration.Provider || "bing";
-
-                                                    // Use cached response from config preview if available
-                                                    var cachedResponse = main.configuration.CachedResponse || "";
-                                                    var cachedProvider = main.configuration.CachedProvider || "";
-                                                    if (cachedResponse !== "") {
-                                                        main.configuration.CachedResponse = "";
-                                                        main.configuration.CachedProvider = "";
-                                                        if (cachedProvider === provider) {
-                                                            log("Using cached response from config preview");
-                                                            try {
-                                                                var isPortrait = main.height > main.width;
-                                                                var result = Providers.parseResponse(provider, cachedResponse, isPortrait);
-                                                                if (result) {
-                                                                    applyFetchResult(result);
-                                                                    return;
-                                                                }
-                                                            } catch (e) {
-                                                                log("Cached response parse error: " + e + ", fetching fresh");
-                                                            }
-                                                        }
-                                                    }
-
                                                     var market = main.configuration.Market;
                                                     if (!market || market === "")
                                                         market = Utils.detectMarket();
@@ -251,16 +223,7 @@ WallpaperItem {
                             if (isLoading) return;
                             // Clear current image to show black background while loading
                             root.clear();
-                            var today = new Date().toISOString().substring(0, 10);
-                            var cached = Utils.getProviderCache(
-                                main.configuration.ProviderCache, provider, cacheRetentionDays);
-                            if (cached && cached.fetchDate === today) {
-                                log("Provider switched: using today's cache for " + provider);
-                                isLoading = true;
-                                applyFetchResult(cached);
-                            } else {
-                                Qt.callLater(refreshImage);
-                            }
+                            Qt.callLater(refreshImage);
                         }
                     }
                     onWidthChanged: _tryInitialRefresh()
@@ -278,8 +241,12 @@ WallpaperItem {
                             if (provider === "spotlight" || lastFetchDate !== today) {
                                 log("Date changed or Spotlight provider (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
                                 refreshImage();
+                            } else if (lastValidImagePath && lastValidImagePath !== "") {
+                                log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
+                                main.currentUrl = lastValidImagePath;
                             } else {
-                                log("Already fetched today (" + today + ") - skipping startup refresh");
+                                log("Already fetched today (" + today + ") but no cached image - refreshing");
+                                refreshImage();
                             }
                         }
                     }
@@ -335,8 +302,12 @@ WallpaperItem {
                                 if (provider === "spotlight" || lastFetchDate !== today) {
                                     log("Startup fallback: date changed - refreshing");
                                     refreshImage();
+                                } else if (lastValidImagePath && lastValidImagePath !== "") {
+                                    log("Startup fallback: loading last image: " + lastValidImagePath);
+                                    main.currentUrl = lastValidImagePath;
                                 } else {
-                                    log("Startup fallback: already fetched today - skipping");
+                                    log("Startup fallback: no cached image - refreshing");
+                                    refreshImage();
                                 }
                             }
                         }
