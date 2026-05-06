@@ -84,8 +84,8 @@ WallpaperItem {
                                                     function _handleFetchError(errorText)
                                                     {
                                                         if (!_triedFallback) {
-                                                            var prov = main.configuration.Provider || "bing";
-                                                            var mkt = main.configuration.Market;
+                                                            var prov = main.provider;
+                                                            var mkt = (main.configuration && main.configuration.Market) || "";
                                                             if (!mkt || mkt === "") mkt = Utils.detectMarket();
                                                             var fallbackUrl = Providers.buildFallbackUrl(prov, mkt);
                                                             if (fallbackUrl) {
@@ -104,7 +104,7 @@ WallpaperItem {
 
                                                 function _fetchFromFallbackUrl(url)
                                                 {
-                                                    var prov = main.configuration.Provider || "bing";
+                                                    var prov = main.provider;
                                                     log("Fetching fallback from " + prov + ": " + url);
 
                                                     Utils.httpGet(url, function(responseText) {
@@ -132,12 +132,18 @@ WallpaperItem {
                                                     description = result.description;
                                                     parsedCopyright = result.copyright;
 
+                                                    if (!main.configuration) {
+                                                        log("configuration not ready in applyFetchResult");
+                                                        isLoading = false;
+                                                        return;
+                                                    }
                                                     main.configuration.LastCopyrightText = copyrightText;
                                                     main.configuration.LastCopyrightLink = copyrightLink;
                                                     main.configuration.LastTitle = imageTitle;
                                                     main.configuration.LastDescription = description;
                                                     main.configuration.LastParsedCopyright = parsedCopyright;
                                                     main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
+                                                    main.configuration.CachedProvider = main.provider;
 
                                                     if (result.imageUrl === lastLoadedUrl)
                                                     {
@@ -161,17 +167,44 @@ WallpaperItem {
 
                                                 function fetchImage()
                                                 {
-                                                    var provider = main.configuration.Provider || "bing";
+                                                    if (!main.configuration) {
+                                                        log("configuration not ready, deferring fetch");
+                                                        Qt.callLater(function() {
+                                                            if (main.configuration) fetchImage();
+                                                            else isLoading = false;
+                                                        });
+                                                        return;
+                                                    }
+
+                                                    // If config already resolved an image URL (e.g. Spotlight
+                                                    // preview), use it directly to avoid a second fetch that
+                                                    // would return a different random image.
+                                                    var cachedUrl = main.configuration.CachedImageUrl || "";
+                                                    if (cachedUrl !== "") {
+                                                        log("Using cached image URL from config: " + cachedUrl);
+                                                        main.configuration.CachedImageUrl = "";
+                                                        var oldUrl = main.currentUrl.toString();
+                                                        main.currentUrl = cachedUrl;
+                                                        main.configuration.CachedProvider = main.provider;
+                                                        wallpaper.configuration.writeConfig();
+                                                        if (main.currentUrl.toString() === oldUrl) {
+                                                            log("Cached URL same as current, resetting state");
+                                                            isLoading = false;
+                                                        }
+                                                        return;
+                                                    }
+
+                                                    var prov = main.provider;
                                                     var market = main.configuration.Market;
                                                     if (!market || market === "")
                                                         market = Utils.detectMarket();
-                                                    var url = Providers.buildUrl(provider, market);
-                                                    log("Fetching from " + provider + ": " + url);
+                                                    var url = Providers.buildUrl(prov, market);
+                                                    log("Fetching from " + prov + ": " + url);
 
                                                     Utils.httpGet(url, function(responseText) {
                                                         try {
                                                             var isPortrait = main.height > main.width;
-                                                            var result = Providers.parseResponse(provider, responseText, isPortrait);
+                                                            var result = Providers.parseResponse(prov, responseText, isPortrait);
                                                             if (!result) {
                                                                 _handleFetchError("No image in response");
                                                                 return;
@@ -235,11 +268,13 @@ WallpaperItem {
 
                     function _tryInitialRefresh() {
                         if (_initialRefreshDone) return;
-                        if (main.width > 0 && main.height > 0) {
+                        if (main.width > 0 && main.height > 0 && main.configuration) {
                             _initialRefreshDone = true;
                             var today = new Date().toISOString().substring(0, 10);
-                            if (provider === "spotlight" || lastFetchDate !== today) {
-                                log("Date changed or Spotlight provider (last: " + (lastFetchDate || "none") + ", today: " + today + ") - refreshing");
+                            var cachedProv = main.configuration.CachedProvider || "";
+                            var providerMismatch = cachedProv !== "" && cachedProv !== provider;
+                            if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
+                                log("Refreshing (provider=" + provider + ", cached=" + cachedProv + ", lastFetch=" + (lastFetchDate || "none") + ", today=" + today + ")");
                                 refreshImage();
                             } else if (lastValidImagePath && lastValidImagePath !== "") {
                                 log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
@@ -299,8 +334,10 @@ WallpaperItem {
                             if (!_initialRefreshDone) {
                                 _initialRefreshDone = true;
                                 var today = new Date().toISOString().substring(0, 10);
-                                if (provider === "spotlight" || lastFetchDate !== today) {
-                                    log("Startup fallback: date changed - refreshing");
+                                var cachedProv = (main.configuration && main.configuration.CachedProvider) || "";
+                                var providerMismatch = cachedProv !== "" && cachedProv !== provider;
+                                if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
+                                    log("Startup fallback: refreshing (cached=" + cachedProv + ", provider=" + provider + ")");
                                     refreshImage();
                                 } else if (lastValidImagePath && lastValidImagePath !== "") {
                                     log("Startup fallback: loading last image: " + lastValidImagePath);

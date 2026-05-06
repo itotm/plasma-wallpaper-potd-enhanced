@@ -1,5 +1,8 @@
 .import "provider-bing.js" as BingProvider
+.import "provider-chandra.js" as ChandraProvider
 .import "provider-copernicus.js" as CopernicusProvider
+.import "provider-earthobservatory.js" as EarthObservatoryProvider
+.import "provider-eso.js" as EsoProvider
 .import "provider-hubble.js" as HubbleProvider
 .import "provider-nasa.js" as NasaProvider
 .import "provider-spotlight.js" as SpotlightProvider
@@ -13,8 +16,14 @@
 
 function buildUrl(provider, market) {
     switch (provider) {
+        case "chandra":
+            return ChandraProvider.buildUrl(market);
         case "copernicus":
             return CopernicusProvider.buildUrl(market);
+        case "earthobservatory":
+            return EarthObservatoryProvider.buildUrl(market);
+        case "eso":
+            return EsoProvider.buildUrl(market);
         case "hubble":
             return HubbleProvider.buildUrl(market);
         case "nasa":
@@ -32,8 +41,14 @@ function buildUrl(provider, market) {
 
 function parseResponse(provider, responseText, isPortrait) {
     switch (provider) {
+        case "chandra":
+            return ChandraProvider.parseResponse(responseText, isPortrait);
         case "copernicus":
             return CopernicusProvider.parseResponse(responseText, isPortrait);
+        case "earthobservatory":
+            return EarthObservatoryProvider.parseResponse(responseText, isPortrait);
+        case "eso":
+            return EsoProvider.parseResponse(responseText, isPortrait);
         case "hubble":
             return HubbleProvider.parseResponse(responseText, isPortrait);
         case "nasa":
@@ -51,6 +66,10 @@ function parseResponse(provider, responseText, isPortrait) {
 
 function buildFallbackUrl(provider, market) {
     switch (provider) {
+        case "chandra":
+            return ChandraProvider.buildFallbackUrl(market);
+        case "eso":
+            return EsoProvider.buildFallbackUrl(market);
         case "hubble":
             return HubbleProvider.buildFallbackUrl(market);
         case "webb":
@@ -62,6 +81,8 @@ function buildFallbackUrl(provider, market) {
 
 function parseFallbackResponse(provider, responseText, isPortrait) {
     switch (provider) {
+        case "eso":
+            return EsoProvider.parseFallbackResponse(responseText, isPortrait);
         case "hubble":
             return HubbleProvider.parseFallbackResponse(responseText, isPortrait);
         default:

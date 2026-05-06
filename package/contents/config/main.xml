@@ -65,6 +65,14 @@
       <label>Date of the last successful wallpaper fetch (YYYY-MM-DD)</label>
       <default></default>
     </entry>
+    <entry name="CachedProvider" type="String">
+      <label>Provider that produced the currently cached image</label>
+      <default></default>
+    </entry>
+    <entry name="CachedImageUrl" type="String">
+      <label>Image URL resolved by config preview (avoids re-fetch for random providers)</label>
+      <default></default>
+    </entry>
   </group>
 
 </kcfg>

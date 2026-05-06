@@ -27,6 +27,7 @@ Item {
             property string cfg_LastDescription
             property string cfg_LastParsedCopyright
             property string cfg_LastCopyrightLink
+            property string cfg_CachedImageUrl
             property bool cfg_ShowOverlay
             property string cfg_OverlayPosition
 
@@ -74,6 +75,10 @@ Item {
                                     cfg_LastDescription = result.description;
                                     cfg_LastParsedCopyright = result.copyright;
                                     cfg_LastCopyrightLink = result.copyrightLink;
+                                    // For providers that return random images (e.g. Spotlight),
+                                    // cache the resolved URL so main.qml uses the same image
+                                    // instead of re-fetching and getting a different one.
+                                    cfg_CachedImageUrl = result.imageUrl || "";
                                     cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
                                     isFetchingPreview = false;
                                 }
@@ -145,8 +150,8 @@ Item {
                                         Qt.openUrlExternally(currentCopyrightLink);
                                 }
 
-                                implicitWidth: parent.width
-                                implicitHeight: parent.height
+                                implicitWidth: parent ? parent.width : 0
+                                implicitHeight: parent ? parent.height : 0
                                 Component.onCompleted: {
                                     if (!wallpaperConfiguration)
                                     {
@@ -196,10 +201,13 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
+                            { text: "Chandra X-ray Observatory", value: "chandra" },
                             { text: "Copernicus", value: "copernicus" },
                             { text: "ESA Hubble PotW", value: "hubble" },
                             { text: "ESA Webb PotM", value: "webb" },
+                            { text: "ESO PotW", value: "eso" },
                             { text: "NASA APoD", value: "nasa" },
+                            { text: "NASA Earth Observatory IotD", value: "earthobservatory" },
                             { text: "Spotlight", value: "spotlight" },
                             { text: "Wikimedia Commons", value: "wikimedia" }
                             ]
@@ -215,7 +223,7 @@ Item {
                         ComboBox {
                             id: marketInput
 
-                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus"
+                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus" && cfg_Provider !== "eso" && cfg_Provider !== "chandra" && cfg_Provider !== "earthobservatory"
                             Kirigami.FormData.label: i18n("Region:")
                             textRole: "text"
                             valueRole: "value"
