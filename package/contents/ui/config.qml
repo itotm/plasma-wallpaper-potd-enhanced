@@ -201,6 +201,7 @@ Item {
                             valueRole: "value"
                             model: [
                             { text: "Bing", value: "bing" },
+                            { text: "Biomedial PoD", value: "bpod" },
                             { text: "Chandra X-ray Observatory", value: "chandra" },
                             { text: "Copernicus", value: "copernicus" },
                             { text: "ESA Hubble PotW", value: "hubble" },

@@ -8,8 +8,7 @@ multiple providers, with copyright overlay and region selection.
 ## Features
 
 - **Multiple providers**: Bing, Copernicus Image of the Day, ESA Hubble
-  Picture of the Week, ESA Webb Picture of the Month, NASA Astronomy Picture of
-  the Day, Windows Spotlight, and Wikimedia Commons.
+  Picture of the Week, ESA Webb Picture of the Month, NASA Astronomy Picture of the Day, Windows Spotlight, Biomedical Picture of the Day, and Wikimedia Commons.
 - **Orientation-aware**: automatically selects UHD landscape or portrait
   resolution based on screen dimensions.
 - **Region/market selection**: 14 locales available; auto-detected from system
