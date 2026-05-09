@@ -20,385 +20,380 @@ Item {
     property var configDialog
     property var wallpaperConfiguration
     property bool cfg_RefetchSignal
-            property string cfg_currentWallpaperThumbnail
-            property string cfg_Market
-            property string cfg_Provider
-            property string cfg_LastTitle
-            property string cfg_LastDescription
-            property string cfg_LastParsedCopyright
-            property string cfg_LastCopyrightLink
-            property string cfg_CachedImageUrl
-            property bool cfg_ShowOverlay
-            property string cfg_OverlayPosition
+    property string cfg_currentWallpaperThumbnail
+    property string cfg_Market
+    property string cfg_Provider
+    property string cfg_LastTitle
+    property string cfg_LastDescription
+    property string cfg_LastParsedCopyright
+    property string cfg_LastCopyrightLink
+    property string cfg_CachedImageUrl
+    property bool cfg_ShowOverlay
+    property string cfg_OverlayPosition
 
-            property string previewThumbnail: ""
-            property string previewTitle: ""
-            property string previewDescription: ""
-            property string previewParsedCopyright: ""
-            property string previewCopyrightLink: ""
-            property bool hasPreview: false
+    property string previewThumbnail: ""
+    property string previewTitle: ""
+    property string previewDescription: ""
+    property string previewParsedCopyright: ""
+    property string previewCopyrightLink: ""
+    property bool hasPreview: false
 
-            property bool isFetchingPreview: false
+    property bool isFetchingPreview: false
 
-            readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
-                readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
-                    readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
-                        readonly property string currentParsedCopyright: hasPreview ? previewParsedCopyright : (wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright)
-                            readonly property string currentCopyrightLink: hasPreview ? previewCopyrightLink : (wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink)
+    readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
+    readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
+    readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
+    readonly property string currentParsedCopyright: hasPreview ? previewParsedCopyright : (wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright)
+    readonly property string currentCopyrightLink: hasPreview ? previewCopyrightLink : (wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink)
 
-                                function fetchPreview()
-                                {
-                                    var provider = cfg_Provider;
-                                    var market = cfg_Market;
-                                    if (!market || market === "")
-                                    {
-                                        market = Utils.detectMarket();
-                                    }
+    function fetchPreview() {
+        var provider = cfg_Provider;
+        var market = cfg_Market;
+        if (!market || market === "") {
+            market = Utils.detectMarket();
+        }
 
-                                    isFetchingPreview = true;
-                                    var url = Providers.buildUrl(provider, market);
-                                    console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
-                                    _fetchPreviewFromUrl(provider, market, url, false);
-                                }
+        isFetchingPreview = true;
+        var url = Providers.buildUrl(provider, market);
+        console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
+        _fetchPreviewFromUrl(provider, market, url, false);
+    }
 
-                                function _applyPreviewResult(result, responseText, provider, isFallback)
-                                {
-                                    previewThumbnail = result.thumbnailUrl;
-                                    previewTitle = result.title;
-                                    previewDescription = result.description;
-                                    previewParsedCopyright = result.copyright;
-                                    previewCopyrightLink = result.copyrightLink;
-                                    hasPreview = true;
+    function _applyPreviewResult(result, responseText, provider, isFallback) {
+        previewThumbnail = result.thumbnailUrl;
+        previewTitle = result.title;
+        previewDescription = result.description;
+        previewParsedCopyright = result.copyright;
+        previewCopyrightLink = result.copyrightLink;
+        hasPreview = true;
 
-                                    cfg_currentWallpaperThumbnail = result.thumbnailUrl;
-                                    cfg_LastTitle = result.title;
-                                    cfg_LastDescription = result.description;
-                                    cfg_LastParsedCopyright = result.copyright;
-                                    cfg_LastCopyrightLink = result.copyrightLink;
-                                    // For providers that return random images (e.g. Spotlight),
-                                    // cache the resolved URL so main.qml uses the same image
-                                    // instead of re-fetching and getting a different one.
-                                    cfg_CachedImageUrl = result.imageUrl || "";
-                                    cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
-                                    isFetchingPreview = false;
-                                }
+        cfg_currentWallpaperThumbnail = result.thumbnailUrl;
+        cfg_LastTitle = result.title;
+        cfg_LastDescription = result.description;
+        cfg_LastParsedCopyright = result.copyright;
+        cfg_LastCopyrightLink = result.copyrightLink;
+        // For providers that return random images (e.g. Spotlight),
+        // cache the resolved URL so main.qml uses the same image
+        // instead of re-fetching and getting a different one.
+        cfg_CachedImageUrl = result.imageUrl || "";
+        cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+        isFetchingPreview = false;
+    }
 
-                                function _fetchPreviewFromUrl(provider, market, url, isFallback)
-                                {
-                                    Utils.httpGet(url, function(responseText) {
-                                        try {
-                                            var result = isFallback
-                                                ? Providers.parseFallbackResponse(provider, responseText, false)
-                                                : Providers.parseResponse(provider, responseText, false);
-                                            if (!result) {
-                                                if (!isFallback) {
-                                                    var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                                                    if (fallbackUrl) {
-                                                        console.log("PotD Enhanced config: No result from primary, trying fallback: " + fallbackUrl);
-                                                        _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                                                        return;
-                                                    }
-                                                }
-                                                isFetchingPreview = false;
-                                                return;
-                                            }
-                                            _applyPreviewResult(result, responseText, provider, isFallback);
-                                        } catch (e) {
-                                            console.log("PotD Enhanced config: Preview parse error: " + e);
-                                            if (!isFallback) {
-                                                var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                                                if (fallbackUrl) {
-                                                    console.log("PotD Enhanced config: Parse failed, trying fallback: " + fallbackUrl);
-                                                    _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                                                    return;
-                                                }
-                                            }
-                                            isFetchingPreview = false;
-                                        }
-                                    }, function(errorText) {
-                                        console.log("PotD Enhanced config: Preview fetch failed: " + errorText);
-                                        if (!isFallback) {
-                                            var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                                            if (fallbackUrl) {
-                                                console.log("PotD Enhanced config: Trying fallback: " + fallbackUrl);
-                                                _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                                                return;
-                                            }
-                                        }
-                                        isFetchingPreview = false;
-                                    });
-                                }
-
-                                property bool _syncing: false
-
-                                function syncMetadata()
-                                {
-                                    if (_syncing || !wallpaperConfiguration || hasPreview)
-                                        return;
-                                    _syncing = true;
-                                    cfg_currentWallpaperThumbnail = wallpaperConfiguration.currentWallpaperThumbnail || "";
-                                    cfg_LastTitle = wallpaperConfiguration.LastTitle || "";
-                                    cfg_LastDescription = wallpaperConfiguration.LastDescription || "";
-                                    cfg_LastParsedCopyright = wallpaperConfiguration.LastParsedCopyright || "";
-                                    cfg_LastCopyrightLink = wallpaperConfiguration.LastCopyrightLink || "";
-                                    _syncing = false;
-                                }
-
-                                function openCopyrightLink()
-                                {
-                                    if (currentCopyrightLink && currentCopyrightLink !== "")
-                                        Qt.openUrlExternally(currentCopyrightLink);
-                                }
-
-                                implicitWidth: parent ? parent.width : 0
-                                implicitHeight: parent ? parent.height : 0
-                                Component.onCompleted: {
-                                    if (!wallpaperConfiguration)
-                                    {
-                                        if (configDialog && configDialog.configuration)
-                                            wallpaperConfiguration = configDialog.configuration;
-                                        else if (typeof wallpaper !== "undefined" && wallpaper && wallpaper.configuration)
-                                            wallpaperConfiguration = wallpaper.configuration;
-                                        }
-                                        if (!cfg_Market || cfg_Market === "")
-                                            cfg_Market = Utils.detectMarket();
-                                        if (!cfg_Provider || cfg_Provider === "")
-                                            cfg_Provider = "bing";
-                                    }
-                                    onConfigDialogChanged: {
-                                        if (!wallpaperConfiguration && configDialog && configDialog.configuration)
-                                            wallpaperConfiguration = configDialog.configuration;
-                                    }
-
-                                    ScrollView {
-                                        id: scrollView
-
-                                        clip: true
-                                        ScrollBar.vertical.policy: ScrollBar.AlwaysOn
-                                        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
-
-                                        anchors {
-                                            top: parent.top
-                                            left: parent.left
-                                            right: parent.right
-                                            bottom: parent.bottom
-                                            topMargin: Kirigami.Units.smallSpacing
-                                            leftMargin: Kirigami.Units.smallSpacing
-                                            rightMargin: Kirigami.Units.smallSpacing
-                                        }
-
-                                        Kirigami.FormLayout {
-                                            id: formLayout
-
-                                            width: scrollView.width - (scrollView.ScrollBar.vertical.visible ? scrollView.ScrollBar.vertical.width + Kirigami.Units.smallSpacing : 0) - Kirigami.Units.largeSpacing
-
-                                            // Provider
-                        ComboBox {
-                            id: providerInput
-
-                            Kirigami.FormData.label: i18n("Provider:")
-                            textRole: "text"
-                            valueRole: "value"
-                            model: [
-                            { text: "Bing", value: "bing" },
-                            { text: "Biomedial PoD", value: "bpod" },
-                            { text: "Chandra X-ray Observatory", value: "chandra" },
-                            { text: "Copernicus", value: "copernicus" },
-                            { text: "ESA Hubble PotW", value: "hubble" },
-                            { text: "ESA Webb PotM", value: "webb" },
-                            { text: "ESO PotW", value: "eso" },
-                            { text: "NASA APoD", value: "nasa" },
-                            { text: "NASA Earth Observatory IotD", value: "earthobservatory" },
-                            { text: "Spotlight", value: "spotlight" },
-                            { text: "Wikimedia Commons", value: "wikimedia" }
-                            ]
-                            Component.onCompleted: currentIndex = indexOfValue(cfg_Provider)
-                            onActivated: {
-                                cfg_Provider = currentValue;
-                                hasPreview = false;
-                                fetchPreview();
-                            }
-                        }
-
-                        // Region selector
-                        ComboBox {
-                            id: marketInput
-
-                            visible: cfg_Provider !== "wikimedia" && cfg_Provider !== "nasa" && cfg_Provider !== "hubble" && cfg_Provider !== "webb" && cfg_Provider !== "copernicus" && cfg_Provider !== "eso" && cfg_Provider !== "chandra" && cfg_Provider !== "earthobservatory"
-                            Kirigami.FormData.label: i18n("Region:")
-                            textRole: "text"
-                            valueRole: "value"
-                            model: [
-                            { text: "Deutsch (Deutschland)", value: "de-DE" },
-                            { text: "English (Australia)", value: "en-AU" },
-                            { text: "English (Canada)", value: "en-CA" },
-                            { text: "English (Great Britain)", value: "en-GB" },
-                            { text: "English (India)", value: "en-IN" },
-                            { text: "English (New Zealand)", value: "en-NZ" },
-                            { text: "English (United States)", value: "en-US" },
-                            { text: "Español (España)", value: "es-ES" },
-                            { text: "Français (Canada)", value: "fr-CA" },
-                            { text: "Français (France)", value: "fr-FR" },
-                            { text: "Italiano (Italia)", value: "it-IT" },
-                            { text: "Português (Brasil)", value: "pt-BR" },
-                            { text: "中文 (中国)", value: "zh-CN" },
-                            { text: "日本語 (日本)", value: "ja-JP" }
-                            ]
-                            Component.onCompleted: {
-                                var market = cfg_Market;
-                                if (!market || market === "")
-                                    market = Utils.detectMarket();
-                                currentIndex = indexOfValue(market);
-                            }
-                            onActivated: {
-                                cfg_Market = currentValue;
-                                hasPreview = false;
-                                fetchPreview();
-                            }
-                        }
-
-                        Item {
-                            implicitHeight: 160 + 2 * Kirigami.Units.gridUnit
-                            Layout.fillWidth: true
-                            Layout.topMargin: Kirigami.Units.gridUnit
-                            Layout.bottomMargin: Kirigami.Units.gridUnit
-                            visible: currentThumbnailSource !== ""
-
-                            Row {
-                                anchors.centerIn: parent
-                                spacing: Kirigami.Units.smallSpacing
-
-                                Kirigami.ShadowedRectangle {
-                                    id: imageContainer
-
-                                    height: 160
-                                    width: 250
-                                    radius: 8
-                                    shadow.size: 15
-                                    shadow.color: Qt.rgba(0, 0, 0, 0.2)
-                                    shadow.yOffset: 2
-                                    Kirigami.Theme.colorSet: Kirigami.Theme.View
-                                    Kirigami.Theme.inherit: false
-                                    color: Kirigami.Theme.alternateBackgroundColor
-
-                                    Image {
-                                        id: currentWallpaper
-
-                                        anchors.fill: parent
-                                        anchors.margins: 5
-                                        fillMode: Image.PreserveAspectCrop
-                                        source: currentThumbnailSource
-                                        asynchronous: true
-                                        cache: true
-                                        smooth: true
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: isFetchingPreview ? Qt.BusyCursor : (currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor)
-                                        onClicked: if (!isFetchingPreview) openCopyrightLink()
-                                    }
-                                }
-
-                                Button {
-                                    id: refreshButton
-
-                                    visible: cfg_Provider === "spotlight"
-                                    icon.name: "view-refresh"
-                                    display: Button.IconOnly
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    ToolTip.text: i18n("Refresh Image")
-                                    ToolTip.visible: hovered
-                                    onClicked: fetchPreview()
-                                }
-                            }
-                        }
-
-                        // Title
-                        Label {
-                            Kirigami.FormData.label: i18n("Title:")
-                            text: currentTitle
-                            font.bold: true
-                            visible: currentTitle !== ""
-                            wrapMode: Text.Wrap
-                            elide: Text.ElideRight
-                            maximumLineCount: 2
-                            Layout.fillWidth: true
-                        }
-
-                        // Description (part before parentheses)
-                        Label {
-                            Kirigami.FormData.label: i18n("Description:")
-                            text: currentDescription
-                            visible: currentDescription !== ""
-                            wrapMode: Text.Wrap
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: 250
-                        }
-
-                        // Copyright (part inside parentheses)
-                        Label {
-                            Kirigami.FormData.label: i18n("Copyright:")
-                            text: currentParsedCopyright
-                            visible: currentParsedCopyright !== ""
-                            wrapMode: Text.Wrap
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: 250
-                        }
-
-                        // Overlay settings
-                        Item {
-                            Kirigami.FormData.isSection: true
-                            Kirigami.FormData.label: i18n("Overlay")
-                        }
-
-                        CheckBox {
-                            id: showOverlayCheckbox
-
-                            Kirigami.FormData.label: i18n("Show Overlay:")
-                            text: i18n("Display title and description on wallpaper")
-                            checked: cfg_ShowOverlay
-                            onToggled: cfg_ShowOverlay = checked
-                        }
-
-                        ComboBox {
-                            id: overlayPositionInput
-
-                            Kirigami.FormData.label: i18n("Position:")
-                            enabled: cfg_ShowOverlay
-                            textRole: "text"
-                            valueRole: "value"
-                            model: [
-                            { text: i18n("Top Left"), value: "top-left" },
-                            { text: i18n("Top Right"), value: "top-right" },
-                            { text: i18n("Bottom Left"), value: "bottom-left" },
-                            { text: i18n("Bottom Right"), value: "bottom-right" }
-                            ]
-                            Component.onCompleted: currentIndex = indexOfValue(cfg_OverlayPosition)
-                            onActivated: cfg_OverlayPosition = currentValue
-                        }
-
-                        Item {
-                            implicitHeight: Kirigami.Units.gridUnit
+    function _fetchPreviewFromUrl(provider, market, url, isFallback) {
+        Utils.httpGet(url, function(responseText) {
+            try {
+                var result = isFallback
+                    ? Providers.parseFallbackResponse(provider, responseText, false)
+                    : Providers.parseResponse(provider, responseText, false);
+                if (!result) {
+                    if (!isFallback) {
+                        var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                        if (fallbackUrl) {
+                            console.log("PotD Enhanced config: No result from primary, trying fallback: " + fallbackUrl);
+                            _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                            return;
                         }
                     }
+                    isFetchingPreview = false;
+                    return;
                 }
-
-                Connections {
-                    target: wallpaperConfiguration
-                    function onValueChanged(key, value) {
-                        if (key === "LastTitle" || key === "LastDescription" ||
-                            key === "LastParsedCopyright" || key === "LastCopyrightLink" ||
-                            key === "currentWallpaperThumbnail")
-                            syncMetadata();
+                _applyPreviewResult(result, responseText, provider, isFallback);
+            } catch (e) {
+                console.log("PotD Enhanced config: Preview parse error: " + e);
+                if (!isFallback) {
+                    var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                    if (fallbackUrl) {
+                        console.log("PotD Enhanced config: Parse failed, trying fallback: " + fallbackUrl);
+                        _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                        return;
                     }
                 }
-
-                Timer {
-                    id: metadataSyncTimer
-
-                    interval: 5000
-                    repeat: false
-                    onTriggered: syncMetadata()
+                isFetchingPreview = false;
+            }
+        }, function(errorText) {
+            console.log("PotD Enhanced config: Preview fetch failed: " + errorText);
+            if (!isFallback) {
+                var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+                if (fallbackUrl) {
+                    console.log("PotD Enhanced config: Trying fallback: " + fallbackUrl);
+                    _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
+                    return;
                 }
             }
+            isFetchingPreview = false;
+        });
+    }
+
+    property bool _syncing: false
+
+    function syncMetadata() {
+        if (_syncing || !wallpaperConfiguration || hasPreview)
+            return;
+        _syncing = true;
+        cfg_currentWallpaperThumbnail = wallpaperConfiguration.currentWallpaperThumbnail || "";
+        cfg_LastTitle = wallpaperConfiguration.LastTitle || "";
+        cfg_LastDescription = wallpaperConfiguration.LastDescription || "";
+        cfg_LastParsedCopyright = wallpaperConfiguration.LastParsedCopyright || "";
+        cfg_LastCopyrightLink = wallpaperConfiguration.LastCopyrightLink || "";
+        _syncing = false;
+    }
+
+    function openCopyrightLink() {
+        if (currentCopyrightLink && currentCopyrightLink !== "")
+            Qt.openUrlExternally(currentCopyrightLink);
+    }
+
+    implicitWidth: parent ? parent.width : 0
+    implicitHeight: parent ? parent.height : 0
+
+    Component.onCompleted: {
+        if (!wallpaperConfiguration) {
+            if (configDialog && configDialog.configuration)
+                wallpaperConfiguration = configDialog.configuration;
+            else if (typeof wallpaper !== "undefined" && wallpaper && wallpaper.configuration)
+                wallpaperConfiguration = wallpaper.configuration;
+        }
+        if (!cfg_Market || cfg_Market === "")
+            cfg_Market = Utils.detectMarket();
+        if (!cfg_Provider || cfg_Provider === "")
+            cfg_Provider = "bing";
+    }
+
+    onConfigDialogChanged: {
+        if (!wallpaperConfiguration && configDialog && configDialog.configuration)
+            wallpaperConfiguration = configDialog.configuration;
+    }
+
+    ScrollView {
+        id: scrollView
+
+        clip: true
+        ScrollBar.vertical.policy: ScrollBar.AlwaysOn
+        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            topMargin: Kirigami.Units.smallSpacing
+            leftMargin: Kirigami.Units.smallSpacing
+            rightMargin: Kirigami.Units.smallSpacing
+        }
+
+        Kirigami.FormLayout {
+            id: formLayout
+
+            width: scrollView.width - (scrollView.ScrollBar.vertical.visible ? scrollView.ScrollBar.vertical.width + Kirigami.Units.smallSpacing : 0) - Kirigami.Units.largeSpacing
+
+            // Provider
+            ComboBox {
+                id: providerInput
+
+                Kirigami.FormData.label: i18n("Provider:")
+                textRole: "text"
+                valueRole: "value"
+                model: [
+                    { text: "Bing", value: "bing" },
+                    { text: "Biomedial PoD", value: "bpod" },
+                    { text: "Chandra X-ray Observatory", value: "chandra" },
+                    { text: "EU Space IotD", value: "euspace" },
+                    { text: "ESA Hubble PotW", value: "hubble" },
+                    { text: "ESA Webb PotM", value: "webb" },
+                    { text: "ESO PotW", value: "eso" },
+                    { text: "NASA APoD", value: "nasa" },
+                    { text: "NASA Earth Observatory IotD", value: "earthobservatory" },
+                    { text: "Spotlight", value: "spotlight" },
+                    { text: "Wikimedia Commons", value: "wikimedia" }
+                ]
+                Component.onCompleted: currentIndex = indexOfValue(cfg_Provider)
+                onActivated: {
+                    cfg_Provider = currentValue;
+                    hasPreview = false;
+                    fetchPreview();
+                }
+            }
+
+            // Region selector
+            ComboBox {
+                id: marketInput
+
+                visible: cfg_Provider === "bing" || cfg_Provider === "spotlight"
+                Kirigami.FormData.label: i18n("Region:")
+                textRole: "text"
+                valueRole: "value"
+                model: [
+                    { text: "Deutsch (Deutschland)", value: "de-DE" },
+                    { text: "English (Australia)", value: "en-AU" },
+                    { text: "English (Canada)", value: "en-CA" },
+                    { text: "English (Great Britain)", value: "en-GB" },
+                    { text: "English (India)", value: "en-IN" },
+                    { text: "English (New Zealand)", value: "en-NZ" },
+                    { text: "English (United States)", value: "en-US" },
+                    { text: "Español (España)", value: "es-ES" },
+                    { text: "Français (Canada)", value: "fr-CA" },
+                    { text: "Français (France)", value: "fr-FR" },
+                    { text: "Italiano (Italia)", value: "it-IT" },
+                    { text: "Português (Brasil)", value: "pt-BR" },
+                    { text: "中文 (中国)", value: "zh-CN" },
+                    { text: "日本語 (日本)", value: "ja-JP" }
+                ]
+                Component.onCompleted: {
+                    var market = cfg_Market;
+                    if (!market || market === "")
+                        market = Utils.detectMarket();
+                    currentIndex = indexOfValue(market);
+                }
+                onActivated: {
+                    cfg_Market = currentValue;
+                    hasPreview = false;
+                    fetchPreview();
+                }
+            }
+
+            Item {
+                implicitHeight: 160 + 2 * Kirigami.Units.gridUnit
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.gridUnit
+                Layout.bottomMargin: Kirigami.Units.gridUnit
+                visible: currentThumbnailSource !== ""
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Kirigami.ShadowedRectangle {
+                        id: imageContainer
+
+                        height: 160
+                        width: 250
+                        radius: 8
+                        shadow.size: 15
+                        shadow.color: Qt.rgba(0, 0, 0, 0.2)
+                        shadow.yOffset: 2
+                        Kirigami.Theme.colorSet: Kirigami.Theme.View
+                        Kirigami.Theme.inherit: false
+                        color: Kirigami.Theme.alternateBackgroundColor
+
+                        Image {
+                            id: currentWallpaper
+
+                            anchors.fill: parent
+                            anchors.margins: 5
+                            fillMode: Image.PreserveAspectCrop
+                            source: currentThumbnailSource
+                            asynchronous: true
+                            cache: true
+                            smooth: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: isFetchingPreview ? Qt.BusyCursor : (currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor)
+                            onClicked: if (!isFetchingPreview) openCopyrightLink()
+                        }
+                    }
+
+                    Button {
+                        id: refreshButton
+
+                        visible: cfg_Provider === "spotlight"
+                        icon.name: "view-refresh"
+                        display: Button.IconOnly
+                        anchors.verticalCenter: parent.verticalCenter
+                        ToolTip.text: i18n("Refresh Image")
+                        ToolTip.visible: hovered
+                        onClicked: fetchPreview()
+                    }
+                }
+            }
+
+            // Title
+            Label {
+                Kirigami.FormData.label: i18n("Title:")
+                text: currentTitle
+                font.bold: true
+                visible: currentTitle !== ""
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+                maximumLineCount: 2
+                Layout.fillWidth: true
+            }
+
+            // Description (part before parentheses)
+            Label {
+                Kirigami.FormData.label: i18n("Description:")
+                text: currentDescription
+                visible: currentDescription !== ""
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                Layout.maximumWidth: 250
+            }
+
+            // Copyright (part inside parentheses)
+            Label {
+                Kirigami.FormData.label: i18n("Copyright:")
+                text: currentParsedCopyright
+                visible: currentParsedCopyright !== ""
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                Layout.maximumWidth: 250
+            }
+
+            // Overlay settings
+            Item {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: i18n("Overlay")
+            }
+
+            CheckBox {
+                id: showOverlayCheckbox
+
+                Kirigami.FormData.label: i18n("Show Overlay:")
+                text: i18n("Display title and description on wallpaper")
+                checked: cfg_ShowOverlay
+                onToggled: cfg_ShowOverlay = checked
+            }
+
+            ComboBox {
+                id: overlayPositionInput
+
+                Kirigami.FormData.label: i18n("Position:")
+                enabled: cfg_ShowOverlay
+                textRole: "text"
+                valueRole: "value"
+                model: [
+                    { text: i18n("Top Left"), value: "top-left" },
+                    { text: i18n("Top Right"), value: "top-right" },
+                    { text: i18n("Bottom Left"), value: "bottom-left" },
+                    { text: i18n("Bottom Right"), value: "bottom-right" }
+                ]
+                Component.onCompleted: currentIndex = indexOfValue(cfg_OverlayPosition)
+                onActivated: cfg_OverlayPosition = currentValue
+            }
+
+            Item {
+                implicitHeight: Kirigami.Units.gridUnit
+            }
+        }
+    }
+
+    Connections {
+        target: wallpaperConfiguration
+        function onValueChanged(key, value) {
+            if (key === "LastTitle" || key === "LastDescription" ||
+                key === "LastParsedCopyright" || key === "LastCopyrightLink" ||
+                key === "currentWallpaperThumbnail")
+                syncMetadata();
+        }
+    }
+
+    Timer {
+        id: metadataSyncTimer
+
+        interval: 5000
+        repeat: false
+        onTriggered: syncMetadata()
+    }
+}

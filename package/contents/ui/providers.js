@@ -1,6 +1,7 @@
 .import "provider-bing.js" as BingProvider
+.import "provider-bpod.js" as BpodProvider
 .import "provider-chandra.js" as ChandraProvider
-.import "provider-copernicus.js" as CopernicusProvider
+.import "provider-euspace.js" as EuSpaceProvider
 .import "provider-earthobservatory.js" as EarthObservatoryProvider
 .import "provider-eso.js" as EsoProvider
 .import "provider-hubble.js" as HubbleProvider
@@ -16,10 +17,12 @@
 
 function buildUrl(provider, market) {
     switch (provider) {
+        case "bpod":
+            return BpodProvider.buildUrl(market);
         case "chandra":
             return ChandraProvider.buildUrl(market);
-        case "copernicus":
-            return CopernicusProvider.buildUrl(market);
+        case "euspace":
+            return EuSpaceProvider.buildUrl(market);
         case "earthobservatory":
             return EarthObservatoryProvider.buildUrl(market);
         case "eso":
@@ -41,10 +44,12 @@ function buildUrl(provider, market) {
 
 function parseResponse(provider, responseText, isPortrait) {
     switch (provider) {
+        case "bpod":
+            return BpodProvider.parseResponse(responseText, isPortrait);
         case "chandra":
             return ChandraProvider.parseResponse(responseText, isPortrait);
-        case "copernicus":
-            return CopernicusProvider.parseResponse(responseText, isPortrait);
+        case "euspace":
+            return EuSpaceProvider.parseResponse(responseText, isPortrait);
         case "earthobservatory":
             return EarthObservatoryProvider.parseResponse(responseText, isPortrait);
         case "eso":

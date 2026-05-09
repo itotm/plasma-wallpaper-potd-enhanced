@@ -27,12 +27,24 @@ function decodeEntities(s) {
 }
 
 function parseResponse(responseText, isPortrait) {
-    // Extract the first <item> block (newest image of the day)
-    var itemMatch = responseText.match(/<item>([\s\S]*?)<\/item>/);
-    if (!itemMatch) {
+    // The feed mixes Earth Observatory and Photojournal items.
+    // Find all <item> blocks and pick the first one categorised as
+    // "Earth Observatory" so we skip unrelated entries.
+    var allItems = responseText.match(/<item>[\s\S]*?<\/item>/g);
+    if (!allItems) {
         return null;
     }
-    var item = itemMatch[1];
+
+    var item = null;
+    for (var i = 0; i < allItems.length; i++) {
+        if (allItems[i].indexOf("Earth Observatory") !== -1) {
+            item = allItems[i];
+            break;
+        }
+    }
+    if (!item) {
+        return null;
+    }
 
     // Extract title
     var title = "";
