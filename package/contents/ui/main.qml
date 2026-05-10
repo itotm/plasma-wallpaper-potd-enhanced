@@ -24,467 +24,461 @@ WallpaperItem {
     loading: false
     property url currentUrl
     readonly property int fillMode: Image.PreserveAspectCrop
-        readonly property bool refreshSignal: main.configuration.RefetchSignal
-            readonly property string provider: main.configuration.Provider || "bing"
-                    readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
-                        readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
-                        property Item pendingImage
-                        readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
-                            property bool isLoading: false
-                                property string lastLoadedUrl: ""
-                                    property string copyrightText: main.configuration.LastCopyrightText || ""
-                                        property string copyrightLink: main.configuration.LastCopyrightLink || ""
-                                            property string imageTitle: main.configuration.LastTitle || ""
-                                                property string description: main.configuration.LastDescription || ""
-                                                    property string parsedCopyright: main.configuration.LastParsedCopyright || ""
-                                                        property int consecutiveErrors: 0
-                                                        property bool _initialRefreshDone: false
-                                                        property bool _triedFallback: false
-                                                        readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
+    readonly property bool refreshSignal: main.configuration.RefetchSignal
+    readonly property string provider: main.configuration.Provider || "bing"
+    readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
+    readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
+    property Item pendingImage
+    readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
+    property bool isLoading: false
+    property string lastLoadedUrl: ""
+    property string copyrightText: main.configuration.LastCopyrightText || ""
+    property string copyrightLink: main.configuration.LastCopyrightLink || ""
+    property string imageTitle: main.configuration.LastTitle || ""
+    property string description: main.configuration.LastDescription || ""
+    property string parsedCopyright: main.configuration.LastParsedCopyright || ""
+    property int consecutiveErrors: 0
+    property bool _initialRefreshDone: false
+    property bool _triedFallback: false
+    property bool _fromConfigApply: false
+    readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
-                                                            function log(msg)
-                                                            {
-                                                                console.log("PotD Enhanced: " + msg);
-                                                            }
+    function log(msg) {
+        console.log("PotD Enhanced: " + msg);
+    }
 
-                                                            function showFetchErrorDialog()
-                                                            {
-                                                                var provName = provider.charAt(0).toUpperCase() + provider.slice(1);
-                                                                errorDialog.text = "Failed to fetch " + provName;
-                                                                errorDialog.open();
-                                                            }
+    function showFetchErrorDialog() {
+        var provName = provider.charAt(0).toUpperCase() + provider.slice(1);
+        errorDialog.text = "Failed to fetch " + provName;
+        errorDialog.open();
+    }
 
-                                                        function showErrorNotification(text)
-                                                        {
-                                                            consecutiveErrors++;
-                                                            if (consecutiveErrors >= 3)
-                                                            {
-                                                                var note = notificationComponent.createObject(root, {
-                                                                "title": "PotD Enhanced Error",
-                                                                "text": text,
-                                                                "iconName": "dialog-error"
-                                                            });
-                                                            note.sendEvent();
-                                                            consecutiveErrors = 0;
-                                                        }
-                                                    }
+    function showErrorNotification(text) {
+        consecutiveErrors++;
+        if (consecutiveErrors >= 3) {
+            var note = notificationComponent.createObject(root, {
+                "title": "PotD Enhanced Error",
+                "text": text,
+                "iconName": "dialog-error"
+            });
+            note.sendEvent();
+            consecutiveErrors = 0;
+        }
+    }
 
-                                                    function refreshImage()
-                                                    {
-                                                        if (isLoading)
-                                                        {
-                                                            log("Loading in progress - skipping refresh");
-                                                            return;
-                                                        }
-                                                        isLoading = true;
-                                                        _triedFallback = false;
-                                                        fetchImage();
-                                                    }
+    function refreshImage() {
+        if (isLoading) {
+            log("Loading in progress - skipping refresh");
+            return;
+        }
+        isLoading = true;
+        _triedFallback = false;
+        fetchImage();
+    }
 
-                                                    function _handleFetchError(errorText)
-                                                    {
-                                                        if (!_triedFallback) {
-                                                            var prov = main.provider;
-                                                            var mkt = (main.configuration && main.configuration.Market) || "";
-                                                            if (!mkt || mkt === "") mkt = Utils.detectMarket();
-                                                            var fallbackUrl = Providers.buildFallbackUrl(prov, mkt);
-                                                            if (fallbackUrl) {
-                                                                _triedFallback = true;
-                                                                log("Primary URL failed, trying fallback: " + fallbackUrl);
-                                                                _fetchFromFallbackUrl(fallbackUrl);
-                                                                return;
-                                                            }
-                                                        }
-                                                        var msg = "Request failed" + (errorText ? ": " + errorText : "");
-                                                        log(msg);
-                                                        showErrorNotification(msg);
-                                                        isLoading = false;
-                                                        showFetchErrorDialog();
-                                                    }
+    function _handleFetchError(errorText) {
+        if (!_triedFallback) {
+            var prov = main.provider;
+            var mkt = (main.configuration && main.configuration.Market) || "";
+            if (!mkt || mkt === "") mkt = Utils.detectMarket();
+            var fallbackUrl = Providers.buildFallbackUrl(prov, mkt);
+            if (fallbackUrl) {
+                _triedFallback = true;
+                log("Primary URL failed, trying fallback: " + fallbackUrl);
+                _fetchFromFallbackUrl(fallbackUrl);
+                return;
+            }
+        }
+        var msg = "Request failed" + (errorText ? ": " + errorText : "");
+        log(msg);
+        showErrorNotification(msg);
+        isLoading = false;
+        showFetchErrorDialog();
+    }
 
-                                                function _fetchFromFallbackUrl(url)
-                                                {
-                                                    var prov = main.provider;
-                                                    log("Fetching fallback from " + prov + ": " + url);
+    function _fetchFromFallbackUrl(url) {
+        var prov = main.provider;
+        log("Fetching fallback from " + prov + ": " + url);
 
-                                                    Utils.httpGet(url, function(responseText) {
-                                                        try {
-                                                            var isPortrait = main.height > main.width;
-                                                            var result = Providers.parseFallbackResponse(prov, responseText, isPortrait);
-                                                            if (!result) {
-                                                                _handleFetchError("No image in fallback response");
-                                                                return;
-                                                            }
-                                                            applyFetchResult(result);
-                                                        } catch (e) {
-                                                            _handleFetchError("Fallback parse error: " + e);
-                                                        }
-                                                    }, function(errorText) {
-                                                        _handleFetchError(errorText);
-                                                    }, { retryDelay: main.retryRequestDelay * 1000 });
-                                                }
+        Utils.httpGet(url, function(responseText) {
+            try {
+                var isPortrait = main.height > main.width;
+                var result = Providers.parseFallbackResponse(prov, responseText, isPortrait);
+                if (!result) {
+                    _handleFetchError("No image in fallback response");
+                    return;
+                }
+                applyFetchResult(result);
+            } catch (e) {
+                _handleFetchError("Fallback parse error: " + e);
+            }
+        }, function(errorText) {
+            _handleFetchError(errorText);
+        }, { retryDelay: main.retryRequestDelay * 1000 });
+    }
 
-                                                function applyFetchResult(result)
-                                                {
-                                                    copyrightText = result.copyrightText;
-                                                    copyrightLink = result.copyrightLink;
-                                                    imageTitle = result.title;
-                                                    description = result.description;
-                                                    parsedCopyright = result.copyright;
+    function applyFetchResult(result) {
+        copyrightText = result.copyrightText;
+        copyrightLink = result.copyrightLink;
+        imageTitle = result.title;
+        description = result.description;
+        parsedCopyright = result.copyright;
 
-                                                    if (!main.configuration) {
-                                                        log("configuration not ready in applyFetchResult");
-                                                        isLoading = false;
-                                                        return;
-                                                    }
-                                                    main.configuration.LastCopyrightText = copyrightText;
-                                                    main.configuration.LastCopyrightLink = copyrightLink;
-                                                    main.configuration.LastTitle = imageTitle;
-                                                    main.configuration.LastDescription = description;
-                                                    main.configuration.LastParsedCopyright = parsedCopyright;
-                                                    main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
-                                                    main.configuration.CachedProvider = main.provider;
+        if (!main.configuration) {
+            log("configuration not ready in applyFetchResult");
+            isLoading = false;
+            return;
+        }
+        main.configuration.LastCopyrightText = copyrightText;
+        main.configuration.LastCopyrightLink = copyrightLink;
+        main.configuration.LastTitle = imageTitle;
+        main.configuration.LastDescription = description;
+        main.configuration.LastParsedCopyright = parsedCopyright;
+        main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
+        main.configuration.CachedProvider = main.provider;
 
-                                                    if (result.imageUrl === lastLoadedUrl)
-                                                    {
-                                                        log("Same image as current, skipping load");
-                                                        wallpaper.configuration.writeConfig();
-                                                        isLoading = false;
-                                                        return;
-                                                    }
+        if (result.imageUrl === lastLoadedUrl) {
+            log("Same image as current, skipping load");
+            wallpaper.configuration.writeConfig();
+            isLoading = false;
+            return;
+        }
 
-                                                    consecutiveErrors = 0;
-                                                    var oldUrl = main.currentUrl.toString();
-                                                    main.currentUrl = result.imageUrl;
-                                                    wallpaper.configuration.writeConfig();
-                                                    // If URL didn't change, onCurrentUrlChanged won't fire,
-                                                    // so loadImage() won't be called — reset isLoading here
-                                                    if (main.currentUrl.toString() === oldUrl) {
-                                                        log("URL unchanged after fetch, resetting state");
-                                                        isLoading = false;
-                                                    }
-                                                }
+        consecutiveErrors = 0;
+        var oldUrl = main.currentUrl.toString();
+        main.currentUrl = result.imageUrl;
+        wallpaper.configuration.writeConfig();
+        // If URL didn't change, onCurrentUrlChanged won't fire,
+        // so loadImage() won't be called — reset isLoading here
+        if (main.currentUrl.toString() === oldUrl) {
+            log("URL unchanged after fetch, resetting state");
+            isLoading = false;
+        }
+    }
 
-                                                function fetchImage()
-                                                {
-                                                    if (!main.configuration) {
-                                                        log("configuration not ready, deferring fetch");
-                                                        Qt.callLater(function() {
-                                                            if (main.configuration) fetchImage();
-                                                            else isLoading = false;
-                                                        });
-                                                        return;
-                                                    }
+    function fetchImage() {
+        if (!main.configuration) {
+            log("configuration not ready, deferring fetch");
+            Qt.callLater(function() {
+                if (main.configuration) fetchImage();
+                else isLoading = false;
+            });
+            return;
+        }
 
-                                                    // If config already resolved an image URL (e.g. Spotlight
-                                                    // preview), use it directly to avoid a second fetch that
-                                                    // would return a different random image.
-                                                    var cachedUrl = main.configuration.CachedImageUrl || "";
-                                                    if (cachedUrl !== "") {
-                                                        log("Using cached image URL from config: " + cachedUrl);
-                                                        main.configuration.CachedImageUrl = "";
-                                                        var oldUrl = main.currentUrl.toString();
-                                                        main.currentUrl = cachedUrl;
-                                                        main.configuration.CachedProvider = main.provider;
-                                                        wallpaper.configuration.writeConfig();
-                                                        if (main.currentUrl.toString() === oldUrl) {
-                                                            log("Cached URL same as current, resetting state");
-                                                            isLoading = false;
-                                                        }
-                                                        return;
-                                                    }
+        // When triggered from config Apply, use the preview URL
+        // so Spotlight shows the same image as the preview.
+        if (_fromConfigApply) {
+            _fromConfigApply = false;
+            var cachedUrl = main.configuration.CachedImageUrl || "";
+            main.configuration.CachedImageUrl = "";
+            if (cachedUrl !== "") {
+                log("Using cached image URL from config: " + cachedUrl);
+                var oldUrl = main.currentUrl.toString();
+                main.currentUrl = cachedUrl;
+                main.configuration.CachedProvider = main.provider;
+                wallpaper.configuration.writeConfig();
+                if (main.currentUrl.toString() === oldUrl) {
+                    log("Cached URL same as current, resetting state");
+                    isLoading = false;
+                }
+                return;
+            }
+        }
 
-                                                    var prov = main.provider;
-                                                    var market = main.configuration.Market;
-                                                    if (!market || market === "")
-                                                        market = Utils.detectMarket();
-                                                    var url = Providers.buildUrl(prov, market);
-                                                    log("Fetching from " + prov + ": " + url);
+        var prov = main.provider;
+        var market = main.configuration.Market;
+        if (!market || market === "")
+            market = Utils.detectMarket();
+        var url = Providers.buildUrl(prov, market);
+        log("Fetching from " + prov + ": " + url);
 
-                                                    Utils.httpGet(url, function(responseText) {
-                                                        try {
-                                                            var isPortrait = main.height > main.width;
-                                                            var result = Providers.parseResponse(prov, responseText, isPortrait);
-                                                            if (!result) {
-                                                                _handleFetchError("No image in response");
-                                                                return;
-                                                            }
-                                                            applyFetchResult(result);
-                                                        } catch (e) {
-                                                            _handleFetchError("Parse error: " + e);
-                                                        }
-                                                    }, function(errorText) {
-                                                        _handleFetchError(errorText);
-                                                    }, { retryDelay: main.retryRequestDelay * 1000 });
-                                }
+        Utils.httpGet(url, function(responseText) {
+            try {
+                var isPortrait = main.height > main.width;
+                var result = Providers.parseResponse(prov, responseText, isPortrait);
+                if (!result) {
+                    _handleFetchError("No image in response");
+                    return;
+                }
+                applyFetchResult(result);
+            } catch (e) {
+                _handleFetchError("Parse error: " + e);
+            }
+        }, function(errorText) {
+            _handleFetchError(errorText);
+        }, { retryDelay: main.retryRequestDelay * 1000 });
+    }
 
-                                function loadImage()
-                                {
-                                    try {
-                                        if (main.currentUrl.toString() === lastLoadedUrl && main.pendingImage)
-                                        {
-                                            log("Skipping duplicate load");
-                                            isLoading = false;
-                                            return;
-                                        }
-                                        log("Loading: " + main.currentUrl.toString());
-                                        lastLoadedUrl = main.currentUrl.toString();
-                                        main.pendingImage = mainImage.createObject(root, {
-                                        "source": main.currentUrl,
-                                        "fillMode": main.fillMode,
-                                        "sourceSize": main.sourceSize
-                                    });
-                                } catch (e) {
-                                log("Error in loadImage: " + e);
-                                isLoading = false;
-                                main.currentUrl = "blackscreen.jpg";
-                                lastLoadedUrl = "blackscreen.jpg";
-                                main.pendingImage = mainImage.createObject(root, {
-                                "source": "blackscreen.jpg",
-                                "fillMode": main.fillMode,
-                                "sourceSize": main.sourceSize
-                            });
-                            root.replace(main.pendingImage);
+    function loadImage() {
+        try {
+            if (main.currentUrl.toString() === lastLoadedUrl && main.pendingImage) {
+                log("Skipping duplicate load");
+                isLoading = false;
+                return;
+            }
+            log("Loading: " + main.currentUrl.toString());
+            lastLoadedUrl = main.currentUrl.toString();
+            main.pendingImage = mainImage.createObject(root, {
+                "source": main.currentUrl,
+                "fillMode": main.fillMode,
+                "sourceSize": main.sourceSize
+            });
+        } catch (e) {
+            log("Error in loadImage: " + e);
+            isLoading = false;
+            main.currentUrl = "blackscreen.jpg";
+            lastLoadedUrl = "blackscreen.jpg";
+            main.pendingImage = mainImage.createObject(root, {
+                "source": "blackscreen.jpg",
+                "fillMode": main.fillMode,
+                "sourceSize": main.sourceSize
+            });
+            root.replace(main.pendingImage);
+        }
+    }
+
+    anchors.fill: parent
+    onCurrentUrlChanged: loadImage()
+    onRefreshSignalChanged: {
+        _fromConfigApply = true;
+        Qt.callLater(refreshImage);
+    }
+    onProviderChanged: {
+        if (_initialRefreshDone) {
+            if (isLoading) return;
+            root.clear();
+            Qt.callLater(refreshImage);
+        }
+    }
+    onWidthChanged: _tryInitialRefresh()
+    onHeightChanged: _tryInitialRefresh()
+    Component.onCompleted: {
+        // Clear stale CachedImageUrl left from a previous session
+        if (main.configuration && main.configuration.CachedImageUrl) {
+            main.configuration.CachedImageUrl = "";
+            wallpaper.configuration.writeConfig();
+        }
+        _tryInitialRefresh();
+        startupRefreshTimer.start();
+    }
+
+    function _tryInitialRefresh() {
+        if (_initialRefreshDone) return;
+        if (main.width > 0 && main.height > 0 && main.configuration) {
+            _initialRefreshDone = true;
+            var today = new Date().toISOString().substring(0, 10);
+            var cachedProv = main.configuration.CachedProvider || "";
+            var providerMismatch = cachedProv !== "" && cachedProv !== provider;
+            if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
+                log("Refreshing (provider=" + provider + ", cached=" + cachedProv + ", lastFetch=" + (lastFetchDate || "none") + ", today=" + today + ")");
+                refreshImage();
+            } else if (lastValidImagePath && lastValidImagePath !== "") {
+                log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
+                main.currentUrl = lastValidImagePath;
+            } else {
+                log("Already fetched today (" + today + ") but no cached image - refreshing");
+                refreshImage();
+            }
+        }
+    }
+
+    onIsLoadingChanged: {
+        if (isLoading)
+            loadingTimeoutTimer.restart();
+        else
+            loadingTimeoutTimer.stop();
+    }
+
+    contextualActions: [
+        PlasmaCore.Action {
+            text: i18n("Open Wallpaper")
+            icon.name: "folder-open"
+            onTriggered: {
+                if (main.currentUrl && main.currentUrl.toString() !== "" && main.currentUrl.toString() !== "blackscreen.jpg")
+                    Qt.openUrlExternally(main.currentUrl);
+            }
+        },
+        PlasmaCore.Action {
+            text: i18n("Refresh Image")
+            icon.name: "view-refresh"
+            visible: main.provider === "spotlight"
+            onTriggered: refreshImage()
+        }
+    ]
+
+    Timer {
+        id: loadingTimeoutTimer
+        interval: 60000
+        repeat: false
+        onTriggered: {
+            if (isLoading) {
+                log("Loading timeout - destroying pending image");
+                if (main.pendingImage) {
+                    main.pendingImage.destroy();
+                    main.pendingImage = null;
+                }
+                isLoading = false;
+                showFetchErrorDialog();
+            }
+        }
+    }
+
+    Timer {
+        id: startupRefreshTimer
+        interval: 5000
+        repeat: false
+        onTriggered: {
+            if (!_initialRefreshDone) {
+                _initialRefreshDone = true;
+                var today = new Date().toISOString().substring(0, 10);
+                var cachedProv = (main.configuration && main.configuration.CachedProvider) || "";
+                var providerMismatch = cachedProv !== "" && cachedProv !== provider;
+                if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
+                    log("Startup fallback: refreshing (cached=" + cachedProv + ", provider=" + provider + ")");
+                    refreshImage();
+                } else if (lastValidImagePath && lastValidImagePath !== "") {
+                    log("Startup fallback: loading last image: " + lastValidImagePath);
+                    main.currentUrl = lastValidImagePath;
+                } else {
+                    log("Startup fallback: no cached image - refreshing");
+                    refreshImage();
+                }
+            }
+        }
+    }
+
+    Component {
+        id: notificationComponent
+
+        Notification {
+            componentName: "plasma_workspace"
+            eventId: "notification"
+            urgency: Notification.HighUrgency
+            autoDelete: true
+        }
+    }
+
+    MessageDialog {
+        id: errorDialog
+        title: "PotD Enhanced"
+        buttons: MessageDialog.Retry | MessageDialog.Ok
+        onButtonClicked: function(button) {
+            if (button === MessageDialog.Retry) {
+                Qt.callLater(refreshImage);
+            }
+        }
+    }
+
+    QQC2.StackView {
+        id: root
+
+        anchors.fill: parent
+
+        background: Rectangle {
+            color: "black"
+        }
+
+        Component {
+            id: mainImage
+
+            Image {
+                id: imageItem
+
+                asynchronous: true
+                cache: true
+                autoTransform: true
+                smooth: true
+                onStatusChanged: {
+                    if (status === Image.Error) {
+                        log("Error loading image");
+                        showErrorNotification("Failed to load image");
+                        if (imageItem === main.pendingImage) {
+                            main.pendingImage = null;
+                            imageItem.destroy();
                         }
-                    }
-
-                    anchors.fill: parent
-                    onCurrentUrlChanged: loadImage()
-                    onRefreshSignalChanged: Qt.callLater(refreshImage)
-                    onProviderChanged: {
-                        if (_initialRefreshDone) {
-                            if (isLoading) return;
-                            // Clear current image to show black background while loading
-                            root.clear();
-                            Qt.callLater(refreshImage);
+                        isLoading = false;
+                        showFetchErrorDialog();
+                    } else if (status === Image.Ready) {
+                        log("Image loaded successfully");
+                        main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
+                        if (Utils.isHttpUrl(source)) {
+                            main.configuration.lastValidImagePath = source.toString();
+                            wallpaper.configuration.writeConfig();
                         }
-                    }
-                    onWidthChanged: _tryInitialRefresh()
-                    onHeightChanged: _tryInitialRefresh()
-                    Component.onCompleted: {
-                        _tryInitialRefresh();
-                        startupRefreshTimer.start();
-                    }
-
-                    function _tryInitialRefresh() {
-                        if (_initialRefreshDone) return;
-                        if (main.width > 0 && main.height > 0 && main.configuration) {
-                            _initialRefreshDone = true;
-                            var today = new Date().toISOString().substring(0, 10);
-                            var cachedProv = main.configuration.CachedProvider || "";
-                            var providerMismatch = cachedProv !== "" && cachedProv !== provider;
-                            if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
-                                log("Refreshing (provider=" + provider + ", cached=" + cachedProv + ", lastFetch=" + (lastFetchDate || "none") + ", today=" + today + ")");
-                                refreshImage();
-                            } else if (lastValidImagePath && lastValidImagePath !== "") {
-                                log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
-                                main.currentUrl = lastValidImagePath;
-                            } else {
-                                log("Already fetched today (" + today + ") but no cached image - refreshing");
-                                refreshImage();
-                            }
+                        if (imageItem === main.pendingImage && root.currentItem !== imageItem) {
+                            if (root.depth === 0)
+                                root.push(imageItem);
+                            else
+                                root.replace(imageItem);
                         }
-                    }
-                    onIsLoadingChanged: {
-                        if (isLoading)
-                            loadingTimeoutTimer.restart();
-                        else
-                            loadingTimeoutTimer.stop();
-                    }
-
-                    contextualActions: [
-                        PlasmaCore.Action {
-                            text: i18n("Open Wallpaper")
-                            icon.name: "folder-open"
-                            onTriggered: {
-                                if (main.currentUrl && main.currentUrl.toString() !== "" && main.currentUrl.toString() !== "blackscreen.jpg")
-                                    Qt.openUrlExternally(main.currentUrl);
-                            }
-                        },
-                        PlasmaCore.Action {
-                            text: i18n("Refresh Image")
-                            icon.name: "view-refresh"
-                            visible: main.provider === "spotlight"
-                            onTriggered: refreshImage()
-                        }
-                    ]
-
-                    Timer {
-                        id: loadingTimeoutTimer
-                        interval: 60000
-                        repeat: false
-                        onTriggered: {
-                            if (isLoading) {
-                                log("Loading timeout - destroying pending image");
-                                if (main.pendingImage) {
-                                    main.pendingImage.destroy();
-                                    main.pendingImage = null;
-                                }
-                                isLoading = false;
-                                showFetchErrorDialog();
-                            }
-                        }
-                    }
-
-                    Timer {
-                        id: startupRefreshTimer
-                        interval: 5000
-                        repeat: false
-                        onTriggered: {
-                            if (!_initialRefreshDone) {
-                                _initialRefreshDone = true;
-                                var today = new Date().toISOString().substring(0, 10);
-                                var cachedProv = (main.configuration && main.configuration.CachedProvider) || "";
-                                var providerMismatch = cachedProv !== "" && cachedProv !== provider;
-                                if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
-                                    log("Startup fallback: refreshing (cached=" + cachedProv + ", provider=" + provider + ")");
-                                    refreshImage();
-                                } else if (lastValidImagePath && lastValidImagePath !== "") {
-                                    log("Startup fallback: loading last image: " + lastValidImagePath);
-                                    main.currentUrl = lastValidImagePath;
-                                } else {
-                                    log("Startup fallback: no cached image - refreshing");
-                                    refreshImage();
-                                }
-                            }
-                        }
-                    }
-
-                    Component {
-                        id: notificationComponent
-
-                        Notification {
-                            componentName: "plasma_workspace"
-                            eventId: "notification"
-                            urgency: Notification.HighUrgency
-                            autoDelete: true
-                        }
-                    }
-
-                    MessageDialog {
-                        id: errorDialog
-                        title: "PotD Enhanced"
-                        buttons: MessageDialog.Retry | MessageDialog.Ok
-                        onButtonClicked: function(button) {
-                            if (button === MessageDialog.Retry) {
-                                Qt.callLater(refreshImage);
-                            }
-                        }
-                    }
-
-                    QQC2.StackView {
-                        id: root
-
-                        anchors.fill: parent
-
-                        background: Rectangle {
-                            color: "black"
-                        }
-
-                        Component {
-                            id: mainImage
-
-                            Image {
-                                id: imageItem
-
-                                asynchronous: true
-                                cache: true
-                                autoTransform: true
-                                smooth: true
-                                onStatusChanged: {
-                                    if (status === Image.Error)
-                                    {
-                                        log("Error loading image");
-                                        showErrorNotification("Failed to load image");
-                                        if (imageItem === main.pendingImage)
-                                        {
-                                            main.pendingImage = null;
-                                            imageItem.destroy();
-                                        }
-                                        isLoading = false;
-                                        showFetchErrorDialog();
-                                    } else if (status === Image.Ready) {
-                                    log("Image loaded successfully");
-                                    main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
-                                    if (Utils.isHttpUrl(source))
-                                    {
-                                        main.configuration.lastValidImagePath = source.toString();
-                                        wallpaper.configuration.writeConfig();
-                                    }
-                                    if (imageItem === main.pendingImage && root.currentItem !== imageItem)
-                                    {
-                                        if (root.depth === 0)
-                                            root.push(imageItem);
-                                        else
-                                            root.replace(imageItem);
-                                        }
-                                        isLoading = false;
-                                    }
-                                }
-                                QQC2.StackView.onActivated: main.accentColorChanged()
-                                QQC2.StackView.onDeactivated: destroy()
-                                QQC2.StackView.onRemoved: destroy()
-                            }
-                        }
-
-                        replaceEnter: Transition {
-                            OpacityAnimator {
-                                id: replaceEnterOpacityAnimator
-
-                                from: 0
-                                to: 1
-                                duration: main.doesSkipAnimation ? 1 : Math.round(Kirigami.Units.longDuration * 2.5)
-                            }
-                        }
-
-                        replaceExit: Transition {
-                            PauseAnimation {
-                                duration: replaceEnterOpacityAnimator.duration
-                            }
-                        }
-                    }
-
-                    // Overlay: "title - description"
-                    Text {
-                        id: overlayLabel
-
-                        readonly property string overlayText: {
-                            if (imageTitle !== "" && description !== "")
-                                return imageTitle + " - " + description;
-                            if (imageTitle !== "")
-                                return imageTitle;
-                            return description;
-                        }
-
-                        visible: main.configuration.ShowOverlay && overlayText !== ""
-                        text: overlayText
-                        color: "white"
-                        style: Text.Outline
-                        styleColor: "black"
-                        font.pixelSize: 14
-                        font.weight: Font.DemiBold
-                        wrapMode: Text.Wrap
-                        width: Math.min(implicitWidth, main.width * 0.7)
-
-                        horizontalAlignment: {
-                            var pos = main.configuration.OverlayPosition || "bottom-left";
-                            if (pos === "top-right" || pos === "bottom-right")
-                                return Text.AlignRight;
-                            return Text.AlignLeft;
-                        }
-
-                        x: {
-                            var pos = main.configuration.OverlayPosition || "bottom-left";
-                            if (pos === "top-right" || pos === "bottom-right")
-                                return main.width - width - 10;
-                            return 10;
-                        }
-
-                        y: {
-                            var pos = main.configuration.OverlayPosition || "bottom-left";
-                            if (pos === "top-left" || pos === "top-right")
-                                return 10;
-                            return main.height - height - 40;
-                        }
+                        isLoading = false;
                     }
                 }
+                QQC2.StackView.onActivated: main.accentColorChanged()
+                QQC2.StackView.onDeactivated: destroy()
+                QQC2.StackView.onRemoved: destroy()
+            }
+        }
+
+        replaceEnter: Transition {
+            OpacityAnimator {
+                id: replaceEnterOpacityAnimator
+
+                from: 0
+                to: 1
+                duration: main.doesSkipAnimation ? 1 : Math.round(Kirigami.Units.longDuration * 2.5)
+            }
+        }
+
+        replaceExit: Transition {
+            PauseAnimation {
+                duration: replaceEnterOpacityAnimator.duration
+            }
+        }
+    }
+
+    // Overlay: "title - description"
+    Text {
+        id: overlayLabel
+
+        readonly property string overlayText: {
+            if (imageTitle !== "" && description !== "")
+                return imageTitle + " - " + description;
+            if (imageTitle !== "")
+                return imageTitle;
+            return description;
+        }
+
+        visible: main.configuration.ShowOverlay && overlayText !== ""
+        text: overlayText
+        color: "white"
+        style: Text.Outline
+        styleColor: "black"
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        wrapMode: Text.Wrap
+        width: Math.min(implicitWidth, main.width * 0.7)
+
+        horizontalAlignment: {
+            var pos = main.configuration.OverlayPosition || "bottom-left";
+            if (pos === "top-right" || pos === "bottom-right")
+                return Text.AlignRight;
+            return Text.AlignLeft;
+        }
+
+        x: {
+            var pos = main.configuration.OverlayPosition || "bottom-left";
+            if (pos === "top-right" || pos === "bottom-right")
+                return main.width - width - 10;
+            return 10;
+        }
+
+        y: {
+            var pos = main.configuration.OverlayPosition || "bottom-left";
+            if (pos === "top-left" || pos === "top-right")
+                return 10;
+            return main.height - height - 40;
+        }
+    }
+}

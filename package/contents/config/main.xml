@@ -70,7 +70,7 @@
       <default></default>
     </entry>
     <entry name="CachedImageUrl" type="String">
-      <label>Image URL resolved by config preview (avoids re-fetch for random providers)</label>
+      <label>Image URL resolved by config preview (used once on Apply, then cleared)</label>
       <default></default>
     </entry>
   </group>

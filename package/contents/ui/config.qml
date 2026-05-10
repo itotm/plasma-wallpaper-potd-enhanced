@@ -40,11 +40,31 @@ Item {
 
     property bool isFetchingPreview: false
 
-    readonly property string currentThumbnailSource: hasPreview ? previewThumbnail : (wallpaperConfiguration ? (wallpaperConfiguration.currentWallpaperThumbnail || "") : cfg_currentWallpaperThumbnail)
-    readonly property string currentTitle: hasPreview ? previewTitle : (wallpaperConfiguration ? (wallpaperConfiguration.LastTitle || "") : cfg_LastTitle)
-    readonly property string currentDescription: hasPreview ? previewDescription : (wallpaperConfiguration ? (wallpaperConfiguration.LastDescription || "") : cfg_LastDescription)
-    readonly property string currentParsedCopyright: hasPreview ? previewParsedCopyright : (wallpaperConfiguration ? (wallpaperConfiguration.LastParsedCopyright || "") : cfg_LastParsedCopyright)
-    readonly property string currentCopyrightLink: hasPreview ? previewCopyrightLink : (wallpaperConfiguration ? (wallpaperConfiguration.LastCopyrightLink || "") : cfg_LastCopyrightLink)
+    readonly property string currentThumbnailSource: hasPreview
+        ? previewThumbnail
+        : (wallpaperConfiguration
+            ? (wallpaperConfiguration.currentWallpaperThumbnail || "")
+            : cfg_currentWallpaperThumbnail)
+    readonly property string currentTitle: hasPreview
+        ? previewTitle
+        : (wallpaperConfiguration
+            ? (wallpaperConfiguration.LastTitle || "")
+            : cfg_LastTitle)
+    readonly property string currentDescription: hasPreview
+        ? previewDescription
+        : (wallpaperConfiguration
+            ? (wallpaperConfiguration.LastDescription || "")
+            : cfg_LastDescription)
+    readonly property string currentParsedCopyright: hasPreview
+        ? previewParsedCopyright
+        : (wallpaperConfiguration
+            ? (wallpaperConfiguration.LastParsedCopyright || "")
+            : cfg_LastParsedCopyright)
+    readonly property string currentCopyrightLink: hasPreview
+        ? previewCopyrightLink
+        : (wallpaperConfiguration
+            ? (wallpaperConfiguration.LastCopyrightLink || "")
+            : cfg_LastCopyrightLink)
 
     function fetchPreview() {
         var provider = cfg_Provider;
@@ -72,11 +92,10 @@ Item {
         cfg_LastDescription = result.description;
         cfg_LastParsedCopyright = result.copyright;
         cfg_LastCopyrightLink = result.copyrightLink;
-        // For providers that return random images (e.g. Spotlight),
-        // cache the resolved URL so main.qml uses the same image
-        // instead of re-fetching and getting a different one.
         cfg_CachedImageUrl = result.imageUrl || "";
-        cfg_RefetchSignal = !(wallpaperConfiguration ? wallpaperConfiguration.RefetchSignal : cfg_RefetchSignal);
+        cfg_RefetchSignal = !(wallpaperConfiguration
+            ? wallpaperConfiguration.RefetchSignal
+            : cfg_RefetchSignal);
         isFetchingPreview = false;
     }
 
@@ -130,6 +149,7 @@ Item {
     function syncMetadata() {
         if (_syncing || !wallpaperConfiguration || hasPreview)
             return;
+
         _syncing = true;
         cfg_currentWallpaperThumbnail = wallpaperConfiguration.currentWallpaperThumbnail || "";
         cfg_LastTitle = wallpaperConfiguration.LastTitle || "";
@@ -167,7 +187,6 @@ Item {
 
     ScrollView {
         id: scrollView
-
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AlwaysOn
         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
@@ -184,19 +203,21 @@ Item {
 
         Kirigami.FormLayout {
             id: formLayout
-
-            width: scrollView.width - (scrollView.ScrollBar.vertical.visible ? scrollView.ScrollBar.vertical.width + Kirigami.Units.smallSpacing : 0) - Kirigami.Units.largeSpacing
+            width: scrollView.width
+                - (scrollView.ScrollBar.vertical.visible
+                    ? scrollView.ScrollBar.vertical.width + Kirigami.Units.smallSpacing
+                    : 0)
+                - Kirigami.Units.largeSpacing
 
             // Provider
             ComboBox {
                 id: providerInput
-
                 Kirigami.FormData.label: i18n("Provider:")
                 textRole: "text"
                 valueRole: "value"
                 model: [
                     { text: "Bing", value: "bing" },
-                    { text: "Biomedial PoD", value: "bpod" },
+                    { text: "Biomedical PoD", value: "bpod" },
                     { text: "Chandra X-ray Observatory", value: "chandra" },
                     { text: "EU Space IotD", value: "euspace" },
                     { text: "ESA Hubble PotW", value: "hubble" },
@@ -218,7 +239,6 @@ Item {
             // Region selector
             ComboBox {
                 id: marketInput
-
                 visible: cfg_Provider === "bing" || cfg_Provider === "spotlight"
                 Kirigami.FormData.label: i18n("Region:")
                 textRole: "text"
@@ -252,6 +272,7 @@ Item {
                 }
             }
 
+            // Preview image
             Item {
                 implicitHeight: 160 + 2 * Kirigami.Units.gridUnit
                 Layout.fillWidth: true
@@ -265,7 +286,6 @@ Item {
 
                     Kirigami.ShadowedRectangle {
                         id: imageContainer
-
                         height: 160
                         width: 250
                         radius: 8
@@ -278,7 +298,6 @@ Item {
 
                         Image {
                             id: currentWallpaper
-
                             anchors.fill: parent
                             anchors.margins: 5
                             fillMode: Image.PreserveAspectCrop
@@ -290,14 +309,17 @@ Item {
 
                         MouseArea {
                             anchors.fill: parent
-                            cursorShape: isFetchingPreview ? Qt.BusyCursor : (currentCopyrightLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor)
+                            cursorShape: isFetchingPreview
+                                ? Qt.BusyCursor
+                                : (currentCopyrightLink !== ""
+                                    ? Qt.PointingHandCursor
+                                    : Qt.ArrowCursor)
                             onClicked: if (!isFetchingPreview) openCopyrightLink()
                         }
                     }
 
                     Button {
                         id: refreshButton
-
                         visible: cfg_Provider === "spotlight"
                         icon.name: "view-refresh"
                         display: Button.IconOnly
@@ -321,7 +343,7 @@ Item {
                 Layout.fillWidth: true
             }
 
-            // Description (part before parentheses)
+            // Description
             Label {
                 Kirigami.FormData.label: i18n("Description:")
                 text: currentDescription
@@ -331,7 +353,7 @@ Item {
                 Layout.maximumWidth: 250
             }
 
-            // Copyright (part inside parentheses)
+            // Copyright
             Label {
                 Kirigami.FormData.label: i18n("Copyright:")
                 text: currentParsedCopyright
@@ -349,7 +371,6 @@ Item {
 
             CheckBox {
                 id: showOverlayCheckbox
-
                 Kirigami.FormData.label: i18n("Show Overlay:")
                 text: i18n("Display title and description on wallpaper")
                 checked: cfg_ShowOverlay
@@ -358,7 +379,6 @@ Item {
 
             ComboBox {
                 id: overlayPositionInput
-
                 Kirigami.FormData.label: i18n("Position:")
                 enabled: cfg_ShowOverlay
                 textRole: "text"
@@ -391,7 +411,6 @@ Item {
 
     Timer {
         id: metadataSyncTimer
-
         interval: 5000
         repeat: false
         onTriggered: syncMetadata()
