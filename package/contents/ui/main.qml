@@ -1,12 +1,3 @@
-/*
-SPDX-FileCopyrightText: 2013 Marco Martin <mart@kde.org>
-SPDX-FileCopyrightText: 2014 Sebastian Kügler <sebas@kde.org>
-SPDX-FileCopyrightText: 2014 Kai Uwe Broulik <kde@privat.broulik.de>
-SPDX-FileCopyrightText: 2024 Abubakar Yagoub <plasma@aolabs.dev>
-
-SPDX-License-Identifier: GPL-2.0-or-later
-*/
-
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Dialogs
@@ -148,8 +139,6 @@ WallpaperItem {
         var oldUrl = main.currentUrl.toString();
         main.currentUrl = result.imageUrl;
         wallpaper.configuration.writeConfig();
-        // If URL didn't change, onCurrentUrlChanged won't fire,
-        // so loadImage() won't be called — reset isLoading here
         if (main.currentUrl.toString() === oldUrl) {
             log("URL unchanged after fetch, resetting state");
             isLoading = false;
@@ -166,10 +155,13 @@ WallpaperItem {
             return;
         }
 
-        // When triggered from config Apply, use the preview URL
-        // so Spotlight shows the same image as the preview.
         if (_fromConfigApply) {
             _fromConfigApply = false;
+            copyrightText = main.configuration.LastCopyrightText || "";
+            copyrightLink = main.configuration.LastCopyrightLink || "";
+            imageTitle = main.configuration.LastTitle || "";
+            description = main.configuration.LastDescription || "";
+            parsedCopyright = main.configuration.LastParsedCopyright || "";
             var cachedUrl = main.configuration.CachedImageUrl || "";
             main.configuration.CachedImageUrl = "";
             if (cachedUrl !== "") {
@@ -254,7 +246,6 @@ WallpaperItem {
     onWidthChanged: _tryInitialRefresh()
     onHeightChanged: _tryInitialRefresh()
     Component.onCompleted: {
-        // Clear stale CachedImageUrl left from a previous session
         if (main.configuration && main.configuration.CachedImageUrl) {
             main.configuration.CachedImageUrl = "";
             wallpaper.configuration.writeConfig();
@@ -438,7 +429,6 @@ WallpaperItem {
         }
     }
 
-    // Overlay: "title - description"
     Text {
         id: overlayLabel
 

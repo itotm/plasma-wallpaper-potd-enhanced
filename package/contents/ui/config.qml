@@ -1,11 +1,3 @@
-/*
-* SPDX-FileCopyrightText: 2013 Marco Martin <mart@kde.org>
-* SPDX-FileCopyrightText: 2014 Kai Uwe Broulik <kde@privat.broulik.de>
-* SPDX-FileCopyrightText: 2024 Abubakar Yagoub <plasma@aolabs.dev>
-*
-* SPDX-License-Identifier: GPL-2.0-or-later
-*/
-
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -209,7 +201,6 @@ Item {
                     : 0)
                 - Kirigami.Units.largeSpacing
 
-            // Provider
             ComboBox {
                 id: providerInput
                 Kirigami.FormData.label: i18n("Provider:")
@@ -236,7 +227,6 @@ Item {
                 }
             }
 
-            // Region selector
             ComboBox {
                 id: marketInput
                 visible: cfg_Provider === "bing" || cfg_Provider === "spotlight"
@@ -272,7 +262,6 @@ Item {
                 }
             }
 
-            // Preview image
             Item {
                 implicitHeight: 160 + 2 * Kirigami.Units.gridUnit
                 Layout.fillWidth: true
@@ -331,7 +320,6 @@ Item {
                 }
             }
 
-            // Title
             Label {
                 Kirigami.FormData.label: i18n("Title:")
                 text: currentTitle
@@ -343,7 +331,6 @@ Item {
                 Layout.fillWidth: true
             }
 
-            // Description
             Label {
                 Kirigami.FormData.label: i18n("Description:")
                 text: currentDescription
@@ -353,7 +340,6 @@ Item {
                 Layout.maximumWidth: 250
             }
 
-            // Copyright
             Label {
                 Kirigami.FormData.label: i18n("Copyright:")
                 text: currentParsedCopyright
@@ -363,7 +349,6 @@ Item {
                 Layout.maximumWidth: 250
             }
 
-            // Overlay settings
             Item {
                 Kirigami.FormData.isSection: true
                 Kirigami.FormData.label: i18n("Overlay")
