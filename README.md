@@ -8,7 +8,7 @@ multiple providers, with copyright overlay and region selection.
 ## Features
 
 - **Multiple providers**: Bing, Biomedical Picture of the Day, Chandra X-ray
-  Observatory, Copernicus Image of the Day, ESA Hubble Picture of the Week,
+  Observatory, EU Space Image of the Day, ESA Hubble Picture of the Week,
   ESA Webb Picture of the Month, ESO Picture of the Week, NASA Astronomy
   Picture of the Day, NASA Earth Observatory Image of the Day, Windows
   Spotlight, and Wikimedia Commons.

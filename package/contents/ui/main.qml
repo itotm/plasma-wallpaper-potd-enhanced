@@ -23,11 +23,6 @@ WallpaperItem {
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
     property string lastLoadedUrl: ""
-    property string copyrightText: main.configuration.LastCopyrightText || ""
-    property string copyrightLink: main.configuration.LastCopyrightLink || ""
-    property string imageTitle: main.configuration.LastTitle || ""
-    property string description: main.configuration.LastDescription || ""
-    property string parsedCopyright: main.configuration.LastParsedCopyright || ""
     property int consecutiveErrors: 0
     property bool _initialRefreshDone: false
     property bool _triedFallback: false
@@ -109,22 +104,16 @@ WallpaperItem {
     }
 
     function applyFetchResult(result) {
-        copyrightText = result.copyrightText;
-        copyrightLink = result.copyrightLink;
-        imageTitle = result.title;
-        description = result.description;
-        parsedCopyright = result.copyright;
-
         if (!main.configuration) {
             log("configuration not ready in applyFetchResult");
             isLoading = false;
             return;
         }
-        main.configuration.LastCopyrightText = copyrightText;
-        main.configuration.LastCopyrightLink = copyrightLink;
-        main.configuration.LastTitle = imageTitle;
-        main.configuration.LastDescription = description;
-        main.configuration.LastParsedCopyright = parsedCopyright;
+        main.configuration.LastCopyrightText = result.copyrightText;
+        main.configuration.LastCopyrightLink = result.copyrightLink;
+        main.configuration.LastTitle = result.title;
+        main.configuration.LastDescription = result.description;
+        main.configuration.LastParsedCopyright = result.copyright;
         main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
         main.configuration.CachedProvider = main.provider;
 
@@ -157,11 +146,6 @@ WallpaperItem {
 
         if (_fromConfigApply) {
             _fromConfigApply = false;
-            copyrightText = main.configuration.LastCopyrightText || "";
-            copyrightLink = main.configuration.LastCopyrightLink || "";
-            imageTitle = main.configuration.LastTitle || "";
-            description = main.configuration.LastDescription || "";
-            parsedCopyright = main.configuration.LastParsedCopyright || "";
             var cachedUrl = main.configuration.CachedImageUrl || "";
             main.configuration.CachedImageUrl = "";
             if (cachedUrl !== "") {
@@ -433,11 +417,13 @@ WallpaperItem {
         id: overlayLabel
 
         readonly property string overlayText: {
-            if (imageTitle !== "" && description !== "")
-                return imageTitle + " - " + description;
-            if (imageTitle !== "")
-                return imageTitle;
-            return description;
+            var title = main.configuration.LastTitle || "";
+            var desc = main.configuration.LastDescription || "";
+            if (title !== "" && desc !== "")
+                return title + " - " + desc;
+            if (title !== "")
+                return title;
+            return desc;
         }
 
         visible: main.configuration.ShowOverlay && overlayText !== ""
