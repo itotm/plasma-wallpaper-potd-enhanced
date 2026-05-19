@@ -210,6 +210,7 @@ Item {
                     { text: "Bing", value: "bing" },
                     { text: "Biomedical PoD", value: "bpod" },
                     { text: "Chandra X-ray Observatory", value: "chandra" },
+                    { text: "DSCOVR Earth", value: "dscovr" },
                     { text: "EU Space IotD", value: "euspace" },
                     { text: "ESA Hubble PotW", value: "hubble" },
                     { text: "ESA Webb PotM", value: "webb" },

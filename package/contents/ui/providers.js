@@ -1,6 +1,7 @@
 .import "provider-bing.js" as BingProvider
 .import "provider-bpod.js" as BpodProvider
 .import "provider-chandra.js" as ChandraProvider
+.import "provider-dscovr.js" as DscovrProvider
 .import "provider-euspace.js" as EuSpaceProvider
 .import "provider-earthobservatory.js" as EarthObservatoryProvider
 .import "provider-eso.js" as EsoProvider
@@ -21,6 +22,8 @@ function buildUrl(provider, market) {
             return BpodProvider.buildUrl(market);
         case "chandra":
             return ChandraProvider.buildUrl(market);
+        case "dscovr":
+            return DscovrProvider.buildUrl(market);
         case "euspace":
             return EuSpaceProvider.buildUrl(market);
         case "earthobservatory":
