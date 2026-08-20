@@ -31,6 +31,7 @@ Item {
     property bool hasPreview: false
 
     property bool isFetchingPreview: false
+    property bool _refetchToggled: false
 
     readonly property string currentThumbnailSource: hasPreview
         ? previewThumbnail
@@ -85,9 +86,14 @@ Item {
         cfg_LastParsedCopyright = result.copyright;
         cfg_LastCopyrightLink = result.copyrightLink;
         cfg_CachedImageUrl = result.imageUrl || "";
-        cfg_RefetchSignal = !(wallpaperConfiguration
-            ? wallpaperConfiguration.RefetchSignal
-            : cfg_RefetchSignal);
+        // Toggle the refetch signal only once per preview session so that
+        // repeated previews do not cancel each other out before Apply.
+        if (!_refetchToggled) {
+            cfg_RefetchSignal = !(wallpaperConfiguration
+                ? wallpaperConfiguration.RefetchSignal
+                : cfg_RefetchSignal);
+            _refetchToggled = true;
+        }
         isFetchingPreview = false;
     }
 
@@ -223,6 +229,7 @@ Item {
                 onActivated: {
                     cfg_Provider = currentValue;
                     hasPreview = false;
+                    _refetchToggled = false;
                     fetchPreview();
                 }
             }
@@ -257,6 +264,7 @@ Item {
                 }
                 onActivated: {
                     cfg_Market = currentValue;
+                    _refetchToggled = false;
                     hasPreview = false;
                     fetchPreview();
                 }

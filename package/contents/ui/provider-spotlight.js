@@ -1,6 +1,6 @@
 function buildUrl(market) {
     var country = market.split("-")[1] || "US";
-    return "https://fd.api.iris.microsoft.com/v4/api/selection?&placement=88000820&bcnt=1&country="
+    return "https://fd.api.iris.microsoft.com/v4/api/selection?placement=88000820&bcnt=1&country="
         + encodeURIComponent(country) + "&locale=" + encodeURIComponent(market) + "&fmt=json";
 }
 

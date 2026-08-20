@@ -6,6 +6,12 @@ function buildFallbackUrl(market) {
     return "https://feeds.feedburner.com/esawebb/potm/";
 }
 
+function parseFallbackResponse(responseText, isPortrait) {
+    // The FeedBurner fallback feed uses the same RSS <item>/<enclosure>
+    // structure as the primary feed, so reuse the primary parser.
+    return parseResponse(responseText, isPortrait);
+}
+
 function stripHtml(html) {
     return html.replace(/<[^>]*>/g, "").trim();
 }
