@@ -20,14 +20,34 @@ WallpaperItem {
     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
     readonly property int retryRequestCount: main.configuration.RetryRequestCount
     readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
+    readonly property int maxStartupRetries: 10
+    readonly property int startupRetryInterval: 30000
+    readonly property int maxImageLoadRetries: 3
+    readonly property int imageLoadRetryInterval: 10000
+    // Worst-case duration of the HTTP fetch phase: every attempt can take up to
+    // the XHR timeout (60 s, see utils.js) plus the delay before the next retry.
+    readonly property int fetchPhaseTimeoutMs: ((main.retryRequestCount + 1) * (60 + main.retryRequestDelay) + 60) * 1000
+    // Time allowed for the image download/decode phase.
+    readonly property int imageLoadPhaseTimeoutMs: 180000
     property Item pendingImage
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
     property string lastLoadedUrl: ""
     property bool _initialRefreshDone: false
+    // True once the first image has actually been displayed. Unlike
+    // _initialRefreshDone (which means "initial refresh was attempted"), this
+    // is what decides whether we are still in the startup phase and should
+    // keep retrying after failures.
+    property bool _everLoaded: false
     property bool _triedFallback: false
     property bool _fromConfigApply: false
     property bool _pendingProviderRefresh: false
+    property int _startupRetryCount: 0
+    property int _imageLoadRetryCount: 0
+    // Incremented every time a new fetch starts. Async callbacks capture the
+    // current value and ignore results that belong to an older run.
+    property int _fetchGeneration: 0
+
     readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
     function log(msg) {
@@ -44,6 +64,13 @@ WallpaperItem {
         }
         isLoading = true;
         _triedFallback = false;
+        _imageLoadRetryCount = 0;
+        // New fetch run: invalidate any in-flight async callbacks and (re)arm
+        // the watchdog for the fetch phase (the XHR chain can be long when
+        // many retries are configured).
+        _fetchGeneration++;
+        loadingTimeoutTimer.interval = fetchPhaseTimeoutMs;
+        loadingTimeoutTimer.restart();
         fetchImage();
     }
 
@@ -62,15 +89,28 @@ WallpaperItem {
         }
         var attempts = main.retryRequestCount + 1;
         var msg = "Request failed" + (errorText ? ": " + errorText : "");
-        log(msg);
+        log(msg + " (" + attempts + " attempts)");
         isLoading = false;
+        // If no image has been displayed yet (startup phase) and we haven't
+        // exhausted our startup retries, schedule a retry. Note: the network
+        // may not be available right after login, so keep trying.
+        if (!_everLoaded && _startupRetryCount < maxStartupRetries) {
+            _startupRetryCount++;
+            log("Scheduling startup retry " + _startupRetryCount + "/" + maxStartupRetries + " in " + (startupRetryInterval / 1000) + "s");
+            startupRetryTimer.start();
+        }
     }
 
     function _fetchFromFallbackUrl(url) {
         var prov = main.provider;
+        var generation = _fetchGeneration;
         log("Fetching fallback from " + prov + ": " + url);
 
         Utils.httpGet(url, function(responseText) {
+            if (generation !== _fetchGeneration) {
+                log("Stale fallback response ignored");
+                return;
+            }
             try {
                 var isPortrait = main.height > main.width;
                 var result = Providers.parseFallbackResponse(prov, responseText, isPortrait);
@@ -83,6 +123,7 @@ WallpaperItem {
                 _handleFetchError("Fallback parse error: " + e);
             }
         }, function(errorText) {
+            if (generation !== _fetchGeneration) return;
             _handleFetchError(errorText);
         }, { retryDelay: main.retryRequestDelay * 1000, maxRetries: main.retryRequestCount });
     }
@@ -112,8 +153,10 @@ WallpaperItem {
         main.currentUrl = result.imageUrl;
         wallpaper.configuration.writeConfig();
         if (main.currentUrl.toString() === oldUrl) {
-            log("URL unchanged after fetch, resetting state");
-            isLoading = false;
+            // currentUrl did not change, so onCurrentUrlChanged won't fire:
+            // load explicitly unless the image is already on screen.
+            log("URL unchanged after fetch, loading explicitly");
+            loadImage();
         }
     }
 
@@ -138,8 +181,10 @@ WallpaperItem {
                 main.configuration.CachedProvider = main.provider;
                 wallpaper.configuration.writeConfig();
                 if (main.currentUrl.toString() === oldUrl) {
-                    log("Cached URL same as current, resetting state");
-                    isLoading = false;
+                    // currentUrl did not change, so onCurrentUrlChanged won't
+                    // fire: load explicitly (loadImage skips if already shown).
+                    log("Cached URL same as current, loading explicitly");
+                    loadImage();
                 }
                 return;
             }
@@ -150,9 +195,14 @@ WallpaperItem {
         if (!market || market === "")
             market = Utils.detectMarket();
         var url = Providers.buildUrl(prov, market);
+        var generation = _fetchGeneration;
         log("Fetching from " + prov + ": " + url);
 
         Utils.httpGet(url, function(responseText) {
+            if (generation !== _fetchGeneration) {
+                log("Stale response ignored");
+                return;
+            }
             try {
                 var isPortrait = main.height > main.width;
                 var result = Providers.parseResponse(prov, responseText, isPortrait);
@@ -165,24 +215,36 @@ WallpaperItem {
                 _handleFetchError("Parse error: " + e);
             }
         }, function(errorText) {
+            if (generation !== _fetchGeneration) return;
             _handleFetchError(errorText);
         }, { retryDelay: main.retryRequestDelay * 1000, maxRetries: main.retryRequestCount });
     }
 
     function loadImage() {
         try {
-            if (main.currentUrl.toString() === lastLoadedUrl && main.pendingImage) {
+            var urlStr = main.currentUrl.toString();
+            if (urlStr === "") {
+                log("No image URL to load");
+                isLoading = false;
+                return;
+            }
+            if (urlStr === lastLoadedUrl && main.pendingImage) {
                 log("Skipping duplicate load");
                 isLoading = false;
                 return;
             }
-            log("Loading: " + main.currentUrl.toString());
-            lastLoadedUrl = main.currentUrl.toString();
+            log("Loading: " + urlStr);
+            lastLoadedUrl = urlStr;
+            isLoading = true;
             // Destroy any previous pending image that was never pushed to the stack
             if (main.pendingImage && main.pendingImage !== root.currentItem) {
                 main.pendingImage.destroy();
                 main.pendingImage = null;
             }
+            // We are now in the image download/decode phase: rearm the watchdog
+            // with the (shorter) load-phase timeout.
+            loadingTimeoutTimer.interval = imageLoadPhaseTimeoutMs;
+            loadingTimeoutTimer.restart();
             main.pendingImage = mainImage.createObject(root, {
                 "source": main.currentUrl,
                 "fillMode": main.fillMode,
@@ -276,21 +338,31 @@ WallpaperItem {
         }
     ]
 
-    // Auto refresh timer for providers that update hourly (Spotlight, DSCOVR)
-    // Only runs when the "Enable Hourly Refresh" option is checked in config.
+    // Watchdog: aborts a fetch/load run that hangs. The interval is adjusted
+    // per phase (HTTP fetch vs image download) before each restart.
     Timer {
         id: loadingTimeoutTimer
-        interval: 60000
+        // Interval is adjusted per phase (fetch vs image load) before restart.
+        interval: main.fetchPhaseTimeoutMs
         repeat: false
         onTriggered: {
             if (isLoading) {
-                log("Loading timeout - destroying pending image");
-                if (main.pendingImage) {
+                log("Loading timeout - aborting current run");
+                // Invalidate any in-flight XHR callbacks so late results from
+                // the aborted run cannot mutate state.
+                _fetchGeneration++;
+                if (main.pendingImage && main.pendingImage !== root.currentItem) {
                     main.pendingImage.destroy();
                     main.pendingImage = null;
                 }
+                lastLoadedUrl = "";
                 isLoading = false;
-                log("Loading timeout - fetch failed");
+                // During startup keep trying so the wallpaper eventually shows.
+                if (!_everLoaded && _startupRetryCount < maxStartupRetries) {
+                    _startupRetryCount++;
+                    log("Scheduling startup retry after timeout " + _startupRetryCount + "/" + maxStartupRetries);
+                    startupRetryTimer.start();
+                }
             }
         }
     }
@@ -304,10 +376,35 @@ WallpaperItem {
         }
     }
 
+    // Retries the fetch after a startup failure (e.g. network not ready yet),
+    // so the wallpaper is eventually applied instead of leaving a black screen.
+    Timer {
+        id: startupRetryTimer
+        interval: main.startupRetryInterval
+        repeat: false
+        onTriggered: {
+            log("Retrying after startup failure");
+            refreshImage()
+        }
+    }
+
+    Timer {
+        id: imageLoadRetryTimer
+        interval: main.imageLoadRetryInterval
+        repeat: false
+        onTriggered: {
+            log("Retrying image load");
+            loadImage()
+        }
+    }
+
+    // Auto refresh timer for providers that update frequently (Spotlight, DSCOVR).
+    // Only acts when the "Enable Hourly Refresh" option is checked in config.
     Timer {
         id: spotlightRefreshTimer
         interval: 3600000
         repeat: true
+        running: true
         onTriggered: {
             if ((main.provider === "spotlight" || main.provider === "dscovr") && 
                 main.configuration && 
@@ -337,21 +434,55 @@ WallpaperItem {
                 autoTransform: true
                 smooth: true
                 onStatusChanged: {
+                    // Ignore status changes from images that are not the
+                    // current pending one (e.g. destroyed/stale instances).
+                    if (imageItem !== main.pendingImage)
+                        return;
                     if (status === Image.Error) {
                         log("Error loading image");
-                        if (imageItem === main.pendingImage) {
-                            main.pendingImage = null;
-                            imageItem.destroy();
-                        }
+                        var failedUrl = lastLoadedUrl;
+                        main.pendingImage = null;
+                        imageItem.destroy();
                         isLoading = false;
+                        // Allow the next load to retry this URL instead of being
+                        // skipped as a duplicate.
+                        lastLoadedUrl = "";
+                        if (!_everLoaded) {
+                            // Startup phase: no image shown yet, keep retrying
+                            // the whole fetch so the wallpaper eventually loads.
+                            if (_startupRetryCount < maxStartupRetries) {
+                                _startupRetryCount++;
+                                log("Scheduling startup retry " + _startupRetryCount + "/" + maxStartupRetries);
+                                startupRetryTimer.start();
+                            }
+                        } else if (_imageLoadRetryCount < maxImageLoadRetries) {
+                            // Already had an image before: retry loading the
+                            // same URL a few times (transient errors).
+                            _imageLoadRetryCount++;
+                            log("Scheduling image load retry " + _imageLoadRetryCount + "/" + maxImageLoadRetries);
+                            imageLoadRetryTimer.start();
+                        } else {
+                            log("Image load retries exhausted");
+                            _imageLoadRetryCount = 0;
+                            // Fall back to the last known good image, unless it
+                            // is the one that just failed.
+                            var fallbackPath = main.configuration.lastValidImagePath || "";
+                            if (fallbackPath !== "" && fallbackPath !== failedUrl) {
+                                log("Falling back to last valid image: " + fallbackPath);
+                                main.currentUrl = fallbackPath;
+                            }
+                        }
                     } else if (status === Image.Ready) {
                         log("Image loaded successfully");
+                        _everLoaded = true;
+                        _startupRetryCount = 0;
+                        _imageLoadRetryCount = 0;
                         main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
                         if (Utils.isHttpUrl(source)) {
                             main.configuration.lastValidImagePath = source.toString();
                             wallpaper.configuration.writeConfig();
                         }
-                        if (imageItem === main.pendingImage && root.currentItem !== imageItem) {
+                        if (root.currentItem !== imageItem) {
                             if (root.depth === 0)
                                 root.push(imageItem);
                             else
