@@ -21,6 +21,10 @@
       <label>Position of overlay (top-left, top-right, bottom-left, bottom-right)</label>
       <default>bottom-left</default>
     </entry>
+    <entry name="EnableHourlyRefresh" type="bool">
+      <label>Automatically refresh image every hour (Spotlight and DSCOVR)</label>
+      <default>false</default>
+    </entry>
     <entry name="RetryRequestCount" type="int">
       <label>How many times to retry request when it fails</label>
       <default>3</default>

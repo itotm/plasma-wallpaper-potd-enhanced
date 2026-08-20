@@ -22,6 +22,7 @@ Item {
     property string cfg_CachedImageUrl
     property bool cfg_ShowOverlay
     property string cfg_OverlayPosition
+    property bool cfg_EnableHourlyRefresh
 
     property string previewThumbnail: ""
     property string previewTitle: ""
@@ -292,13 +293,17 @@ Item {
                         shadow.yOffset: 2
                         Kirigami.Theme.colorSet: Kirigami.Theme.View
                         Kirigami.Theme.inherit: false
-                        color: Kirigami.Theme.alternateBackgroundColor
+                        color: cfg_Provider === "dscovr"
+                            ? "black"
+                            : Kirigami.Theme.alternateBackgroundColor
 
                         Image {
                             id: currentWallpaper
                             anchors.fill: parent
                             anchors.margins: 5
-                            fillMode: Image.PreserveAspectCrop
+                            fillMode: cfg_Provider === "dscovr"
+                                ? Image.PreserveAspectFit
+                                : Image.PreserveAspectCrop
                             source: currentThumbnailSource
                             asynchronous: true
                             cache: true
@@ -385,6 +390,26 @@ Item {
                 ]
                 Component.onCompleted: currentIndex = indexOfValue(cfg_OverlayPosition)
                 onActivated: cfg_OverlayPosition = currentValue
+            }
+
+            Item {
+                implicitHeight: Kirigami.Units.gridUnit
+            }
+
+            Item {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: i18n("Auto Refresh")
+            }
+
+            CheckBox {
+                id: hourlyRefreshCheckbox
+                Kirigami.FormData.label: i18n("Enable Hourly Refresh:")
+                text: i18n("Automatically refresh image every hour")
+                checked: cfg_EnableHourlyRefresh || false
+                onToggled: cfg_EnableHourlyRefresh = checked
+                enabled: cfg_Provider === "spotlight" || cfg_Provider === "dscovr"
+                ToolTip.text: i18n("Only available for Spotlight and DSCOVR providers")
+                ToolTip.visible: hovered
             }
 
             Item {

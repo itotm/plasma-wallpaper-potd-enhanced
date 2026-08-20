@@ -1,9 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
-import QtQuick.Dialogs
 import QtQuick.Window
 import org.kde.kirigami 2.20 as Kirigami
-import org.kde.notification 1.0
 import org.kde.plasma.core 2.0 as PlasmaCore
 import org.kde.plasma.plasmoid
 import "utils.js" as Utils
@@ -14,7 +12,9 @@ WallpaperItem {
 
     loading: false
     property url currentUrl
-    readonly property int fillMode: Image.PreserveAspectCrop
+    readonly property int fillMode: main.provider === "dscovr"
+        ? Image.PreserveAspectFit
+        : Image.PreserveAspectCrop
     readonly property bool refreshSignal: main.configuration.RefetchSignal
     readonly property string provider: main.configuration.Provider || "bing"
     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
@@ -24,7 +24,6 @@ WallpaperItem {
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
     property string lastLoadedUrl: ""
-    property bool _errorNotificationShown: false
     property bool _initialRefreshDone: false
     property bool _triedFallback: false
     property bool _fromConfigApply: false
@@ -33,23 +32,6 @@ WallpaperItem {
 
     function log(msg) {
         console.log("PotD Enhanced: " + msg);
-    }
-
-    function showFetchErrorDialog() {
-        var provName = provider.charAt(0).toUpperCase() + provider.slice(1);
-        errorDialog.text = "Failed to fetch " + provName;
-        errorDialog.open();
-    }
-
-    function showErrorNotification(text) {
-        if (_errorNotificationShown) return;
-        _errorNotificationShown = true;
-        var note = notificationComponent.createObject(root, {
-            "title": "PotD Enhanced Error",
-            "text": text,
-            "iconName": "dialog-error"
-        });
-        note.sendEvent();
     }
 
     function refreshImage() {
@@ -62,7 +44,6 @@ WallpaperItem {
         }
         isLoading = true;
         _triedFallback = false;
-        _errorNotificationShown = false;
         fetchImage();
     }
 
@@ -82,9 +63,7 @@ WallpaperItem {
         var attempts = main.retryRequestCount + 1;
         var msg = "Request failed" + (errorText ? ": " + errorText : "");
         log(msg);
-        showErrorNotification("Could not download the new wallpaper after " + attempts + " attempts. " + msg);
         isLoading = false;
-        showFetchErrorDialog();
     }
 
     function _fetchFromFallbackUrl(url) {
@@ -297,6 +276,8 @@ WallpaperItem {
         }
     ]
 
+    // Auto refresh timer for providers that update hourly (Spotlight, DSCOVR)
+    // Only runs when the "Enable Hourly Refresh" option is checked in config.
     Timer {
         id: loadingTimeoutTimer
         interval: 60000
@@ -309,7 +290,7 @@ WallpaperItem {
                     main.pendingImage = null;
                 }
                 isLoading = false;
-                showFetchErrorDialog();
+                log("Loading timeout - fetch failed");
             }
         }
     }
@@ -319,43 +300,19 @@ WallpaperItem {
         interval: 5000
         repeat: false
         onTriggered: {
-            if (!_initialRefreshDone) {
-                _initialRefreshDone = true;
-                var today = new Date().toISOString().substring(0, 10);
-                var cachedProv = (main.configuration && main.configuration.CachedProvider) || "";
-                var providerMismatch = cachedProv !== "" && cachedProv !== provider;
-                if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
-                    log("Startup fallback: refreshing (cached=" + cachedProv + ", provider=" + provider + ")");
-                    refreshImage();
-                } else if (lastValidImagePath && lastValidImagePath !== "") {
-                    log("Startup fallback: loading last image: " + lastValidImagePath);
-                    main.currentUrl = lastValidImagePath;
-                } else {
-                    log("Startup fallback: no cached image - refreshing");
-                    refreshImage();
-                }
-            }
+            _tryInitialRefresh()
         }
     }
 
-    Component {
-        id: notificationComponent
-
-        Notification {
-            componentName: "plasma_workspace"
-            eventId: "notification"
-            urgency: Notification.HighUrgency
-            autoDelete: true
-        }
-    }
-
-    MessageDialog {
-        id: errorDialog
-        title: "PotD Enhanced"
-        buttons: MessageDialog.Retry | MessageDialog.Ok
-        onButtonClicked: function(button) {
-            if (button === MessageDialog.Retry) {
-                Qt.callLater(refreshImage);
+    Timer {
+        id: spotlightRefreshTimer
+        interval: 3600000
+        repeat: true
+        onTriggered: {
+            if ((main.provider === "spotlight" || main.provider === "dscovr") && 
+                main.configuration && 
+                main.configuration.EnableHourlyRefresh) {
+                refreshImage()
             }
         }
     }
@@ -382,13 +339,11 @@ WallpaperItem {
                 onStatusChanged: {
                     if (status === Image.Error) {
                         log("Error loading image");
-                        showErrorNotification("Failed to load image");
                         if (imageItem === main.pendingImage) {
                             main.pendingImage = null;
                             imageItem.destroy();
                         }
                         isLoading = false;
-                        showFetchErrorDialog();
                     } else if (status === Image.Ready) {
                         log("Image loaded successfully");
                         main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
