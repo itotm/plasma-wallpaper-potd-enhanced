@@ -93,8 +93,10 @@ function parseFallbackResponse(provider, responseText, isPortrait) {
             return EsoProvider.parseFallbackResponse(responseText, isPortrait);
         case "hubble":
             return HubbleProvider.parseFallbackResponse(responseText, isPortrait);
+        case "webb":
+            return WebbProvider.parseFallbackResponse(responseText, isPortrait);
         default:
-            // For providers without a custom fallback parser (e.g. Webb),
+            // For providers without a custom fallback parser,
             // the fallback feed has the same format as the primary.
             return parseResponse(provider, responseText, isPortrait);
     }

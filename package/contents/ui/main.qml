@@ -18,15 +18,17 @@ WallpaperItem {
     readonly property bool refreshSignal: main.configuration.RefetchSignal
     readonly property string provider: main.configuration.Provider || "bing"
     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
+    readonly property int retryRequestCount: main.configuration.RetryRequestCount
     readonly property size sourceSize: Qt.size(main.width * Screen.devicePixelRatio, main.height * Screen.devicePixelRatio)
     property Item pendingImage
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
     property string lastLoadedUrl: ""
-    property int consecutiveErrors: 0
+    property bool _errorNotificationShown: false
     property bool _initialRefreshDone: false
     property bool _triedFallback: false
     property bool _fromConfigApply: false
+    property bool _pendingProviderRefresh: false
     readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
     function log(msg) {
@@ -40,25 +42,27 @@ WallpaperItem {
     }
 
     function showErrorNotification(text) {
-        consecutiveErrors++;
-        if (consecutiveErrors >= 3) {
-            var note = notificationComponent.createObject(root, {
-                "title": "PotD Enhanced Error",
-                "text": text,
-                "iconName": "dialog-error"
-            });
-            note.sendEvent();
-            consecutiveErrors = 0;
-        }
+        if (_errorNotificationShown) return;
+        _errorNotificationShown = true;
+        var note = notificationComponent.createObject(root, {
+            "title": "PotD Enhanced Error",
+            "text": text,
+            "iconName": "dialog-error"
+        });
+        note.sendEvent();
     }
 
     function refreshImage() {
         if (isLoading) {
             log("Loading in progress - skipping refresh");
+            // If the refresh was triggered by a config apply, drop the pending
+            // cached-URL flag so it is not spuriously consumed later.
+            _fromConfigApply = false;
             return;
         }
         isLoading = true;
         _triedFallback = false;
+        _errorNotificationShown = false;
         fetchImage();
     }
 
@@ -75,9 +79,10 @@ WallpaperItem {
                 return;
             }
         }
+        var attempts = main.retryRequestCount + 1;
         var msg = "Request failed" + (errorText ? ": " + errorText : "");
         log(msg);
-        showErrorNotification(msg);
+        showErrorNotification("Could not download the new wallpaper after " + attempts + " attempts. " + msg);
         isLoading = false;
         showFetchErrorDialog();
     }
@@ -100,7 +105,7 @@ WallpaperItem {
             }
         }, function(errorText) {
             _handleFetchError(errorText);
-        }, { retryDelay: main.retryRequestDelay * 1000 });
+        }, { retryDelay: main.retryRequestDelay * 1000, maxRetries: main.retryRequestCount });
     }
 
     function applyFetchResult(result) {
@@ -124,7 +129,6 @@ WallpaperItem {
             return;
         }
 
-        consecutiveErrors = 0;
         var oldUrl = main.currentUrl.toString();
         main.currentUrl = result.imageUrl;
         wallpaper.configuration.writeConfig();
@@ -183,7 +187,7 @@ WallpaperItem {
             }
         }, function(errorText) {
             _handleFetchError(errorText);
-        }, { retryDelay: main.retryRequestDelay * 1000 });
+        }, { retryDelay: main.retryRequestDelay * 1000, maxRetries: main.retryRequestCount });
     }
 
     function loadImage() {
@@ -195,6 +199,11 @@ WallpaperItem {
             }
             log("Loading: " + main.currentUrl.toString());
             lastLoadedUrl = main.currentUrl.toString();
+            // Destroy any previous pending image that was never pushed to the stack
+            if (main.pendingImage && main.pendingImage !== root.currentItem) {
+                main.pendingImage.destroy();
+                main.pendingImage = null;
+            }
             main.pendingImage = mainImage.createObject(root, {
                 "source": main.currentUrl,
                 "fillMode": main.fillMode,
@@ -203,14 +212,9 @@ WallpaperItem {
         } catch (e) {
             log("Error in loadImage: " + e);
             isLoading = false;
-            main.currentUrl = "blackscreen.jpg";
-            lastLoadedUrl = "blackscreen.jpg";
-            main.pendingImage = mainImage.createObject(root, {
-                "source": "blackscreen.jpg",
-                "fillMode": main.fillMode,
-                "sourceSize": main.sourceSize
-            });
-            root.replace(main.pendingImage);
+            main.currentUrl = "";
+            lastLoadedUrl = "";
+            main.pendingImage = null;
         }
     }
 
@@ -222,7 +226,12 @@ WallpaperItem {
     }
     onProviderChanged: {
         if (_initialRefreshDone) {
-            if (isLoading) return;
+            if (isLoading) {
+                // Provider changed while a fetch is in progress: queue a refresh
+                // once the current load finishes.
+                _pendingProviderRefresh = true;
+                return;
+            }
             root.clear();
             Qt.callLater(refreshImage);
         }
@@ -261,8 +270,14 @@ WallpaperItem {
     onIsLoadingChanged: {
         if (isLoading)
             loadingTimeoutTimer.restart();
-        else
+        else {
             loadingTimeoutTimer.stop();
+            if (_pendingProviderRefresh) {
+                _pendingProviderRefresh = false;
+                root.clear();
+                Qt.callLater(refreshImage);
+            }
+        }
     }
 
     contextualActions: [
@@ -426,7 +441,7 @@ WallpaperItem {
             return desc;
         }
 
-        visible: main.configuration.ShowOverlay && overlayText !== ""
+        visible: main.configuration && main.configuration.ShowOverlay && overlayText !== ""
         text: overlayText
         color: "white"
         style: Text.Outline
