@@ -60,7 +60,22 @@ Item {
             ? (wallpaperConfiguration.LastCopyrightLink || "")
             : cfg_LastCopyrightLink)
 
+    // Flip RefetchSignal so that pressing Apply always reaches the wallpaper,
+    // even when the preview fetch below fails: otherwise a provider/region
+    // change made while the network is down is silently dropped, because
+    // main.qml skips its refresh when it has already fetched today.
+    // Only once per config session, so repeated previews do not cancel out.
+    function _armRefetchSignal() {
+        if (_refetchToggled)
+            return;
+        cfg_RefetchSignal = !(wallpaperConfiguration
+            ? wallpaperConfiguration.RefetchSignal
+            : cfg_RefetchSignal);
+        _refetchToggled = true;
+    }
+
     function fetchPreview() {
+        _armRefetchSignal();
         var provider = cfg_Provider;
         var market = cfg_Market;
         if (!market || market === "") {
@@ -87,14 +102,6 @@ Item {
         cfg_LastParsedCopyright = result.copyright;
         cfg_LastCopyrightLink = result.copyrightLink;
         cfg_CachedImageUrl = result.imageUrl || "";
-        // Toggle the refetch signal only once per preview session so that
-        // repeated previews do not cancel each other out before Apply.
-        if (!_refetchToggled) {
-            cfg_RefetchSignal = !(wallpaperConfiguration
-                ? wallpaperConfiguration.RefetchSignal
-                : cfg_RefetchSignal);
-            _refetchToggled = true;
-        }
         isFetchingPreview = false;
     }
 
@@ -177,11 +184,13 @@ Item {
             cfg_Market = Utils.detectMarket();
         if (!cfg_Provider || cfg_Provider === "")
             cfg_Provider = "bing";
+        syncMetadata();
     }
 
     onConfigDialogChanged: {
         if (!wallpaperConfiguration && configDialog && configDialog.configuration)
             wallpaperConfiguration = configDialog.configuration;
+        syncMetadata();
     }
 
     ScrollView {
@@ -231,7 +240,6 @@ Item {
                 onActivated: {
                     cfg_Provider = currentValue;
                     hasPreview = false;
-                    _refetchToggled = false;
                     fetchPreview();
                 }
             }
@@ -266,7 +274,6 @@ Item {
                 }
                 onActivated: {
                     cfg_Market = currentValue;
-                    _refetchToggled = false;
                     hasPreview = false;
                     fetchPreview();
                 }
@@ -426,12 +433,5 @@ Item {
                 key === "currentWallpaperThumbnail")
                 syncMetadata();
         }
-    }
-
-    Timer {
-        id: metadataSyncTimer
-        interval: 5000
-        repeat: false
-        onTriggered: syncMetadata()
     }
 }

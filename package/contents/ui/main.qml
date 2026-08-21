@@ -54,13 +54,25 @@ WallpaperItem {
         console.log("PotD Enhanced: " + msg);
     }
 
-    function refreshImage() {
+    // force: cancel any run already in progress instead of bailing out. Used by
+    // user-initiated refreshes so they are never swallowed by a long retry chain.
+    function refreshImage(force) {
         if (isLoading) {
-            log("Loading in progress - skipping refresh");
-            // If the refresh was triggered by a config apply, drop the pending
-            // cached-URL flag so it is not spuriously consumed later.
-            _fromConfigApply = false;
-            return;
+            if (!force) {
+                log("Loading in progress - skipping refresh");
+                // If the refresh was triggered by a config apply, drop the pending
+                // cached-URL flag so it is not spuriously consumed later.
+                _fromConfigApply = false;
+                return;
+            }
+            log("Loading in progress - cancelling it for a forced refresh");
+            // Bumping _fetchGeneration below invalidates the in-flight XHR
+            // callbacks; drop the pending image so it cannot report status.
+            if (main.pendingImage && main.pendingImage !== root.currentItem) {
+                main.pendingImage.destroy();
+                main.pendingImage = null;
+            }
+            lastLoadedUrl = "";
         }
         isLoading = true;
         _triedFallback = false;
@@ -105,6 +117,11 @@ WallpaperItem {
         var prov = main.provider;
         var generation = _fetchGeneration;
         log("Fetching fallback from " + prov + ": " + url);
+        // The fallback runs a full retry chain of its own, so it needs a fresh
+        // budget: without this it would inherit whatever is left of the primary
+        // phase's watchdog and could be aborted mid-flight.
+        loadingTimeoutTimer.interval = fetchPhaseTimeoutMs;
+        loadingTimeoutTimer.restart();
 
         Utils.httpGet(url, function(responseText) {
             if (generation !== _fetchGeneration) {
@@ -326,7 +343,7 @@ WallpaperItem {
             text: i18n("Open Wallpaper")
             icon.name: "folder-open"
             onTriggered: {
-                if (main.currentUrl && main.currentUrl.toString() !== "" && main.currentUrl.toString() !== "blackscreen.jpg")
+                if (main.currentUrl && main.currentUrl.toString() !== "")
                     Qt.openUrlExternally(main.currentUrl);
             }
         },
@@ -334,7 +351,7 @@ WallpaperItem {
             text: i18n("Refresh Image")
             icon.name: "view-refresh"
             visible: main.provider === "spotlight"
-            onTriggered: refreshImage()
+            onTriggered: refreshImage(true)
         }
     ]
 

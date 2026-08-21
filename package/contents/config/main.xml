@@ -27,7 +27,7 @@
     </entry>
     <entry name="RetryRequestCount" type="int">
       <label>How many times to retry request when it fails</label>
-      <default>20</default>
+      <default>3</default>
     </entry>
     <entry name="RetryRequestDelay" type="int">
       <label>How much time in seconds between request retries</label>

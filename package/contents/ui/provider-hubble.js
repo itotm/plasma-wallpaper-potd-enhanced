@@ -8,7 +8,7 @@ function buildFallbackUrl(market) {
 
 function parseFallbackResponse(responseText, isPortrait) {
     // Extract the latest PotW image ID from the HTML listing page
-    var match = responseText.match(/\/(potw\d{4}a)\//);
+    var match = responseText.match(/\/(potw\d{4}[a-z])\//);
     if (!match) return null;
 
     var id = match[1];

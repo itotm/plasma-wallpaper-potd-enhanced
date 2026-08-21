@@ -2,6 +2,10 @@
 // Feed: https://science.nasa.gov/feed/earth-observatory/image-of-the-day
 // Items contain <content:encoded> with HTML including a download link to the
 // full-resolution image under assets.science.nasa.gov/content/dam/science/esd/eo/...
+//
+// Not every Image of the Day is a still: some entries are videos (<video> /
+// <media:player>, only an .mp4 under content/dam) and carry no downloadable
+// image at all. Those entries are skipped and the next one is used instead.
 
 function buildUrl(market) {
     return "https://science.nasa.gov/feed/earth-observatory/image-of-the-day";
@@ -17,7 +21,7 @@ function decodeEntities(s) {
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
         .replace(/&quot;/g, '"')
-        .replace(/&#039;/g, "'")
+        .replace(/&#0?39;/g, "'")
         .replace(/&#8217;/g, "’")
         .replace(/&#8216;/g, "‘")
         .replace(/&#8220;/g, "“")
@@ -26,24 +30,48 @@ function decodeEntities(s) {
         .replace(/&nbsp;/g, " ");
 }
 
-function parseResponse(responseText, isPortrait) {
-    // The feed mixes Earth Observatory and Photojournal items.
-    // Find all <item> blocks and pick the first one categorised as
-    // "Earth Observatory" so we skip unrelated entries.
-    var allItems = responseText.match(/<item>[\s\S]*?<\/item>/g);
-    if (!allItems) {
-        return null;
-    }
+function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
-    var item = null;
-    for (var i = 0; i < allItems.length; i++) {
-        if (allItems[i].indexOf("Earth Observatory") !== -1) {
-            item = allItems[i];
-            break;
+// Returns a wallpaper entry for a single <item>, or null when the item carries
+// no usable full-resolution still (video entries, teaser-only entries).
+function parseItem(item) {
+    // Extract full content block for image URLs
+    var contentHtml = "";
+    var contentMatch = item.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/);
+    if (contentMatch) {
+        contentHtml = contentMatch[1];
+        var ccData = contentHtml.match(/<!\[CDATA\[([\s\S]*?)\]\]>/);
+        if (ccData) {
+            contentHtml = ccData[1];
         }
     }
-    if (!item) {
+
+    // The large JPEG from the Downloads section:
+    //   https://assets.science.nasa.gov/content/dam/science/esd/eo/images/iotd/.../<name>_lrg.jpg
+    // This is the only reliable full-resolution asset; if it is absent the item
+    // is not usable as a wallpaper and the caller moves on to the next one.
+    var largeMatch = contentHtml.match(/https:\/\/assets\.science\.nasa\.gov\/content\/dam\/science\/esd\/eo\/images\/iotd\/[^"'\s]+?_lrg\.(?:jpg|jpeg|png)/i);
+    if (!largeMatch) {
         return null;
+    }
+    var imageUrl = decodeEntities(largeMatch[0]);
+
+    // Thumbnail: a dynamicimage variant of the SAME article. Restricting the
+    // search to the article slug matters because the content block also embeds
+    // "related articles" thumbnails belonging to completely different stories.
+    var thumbnailUrl = imageUrl;
+    var slugMatch = imageUrl.match(/\/iotd\/(.+)\/[^\/]+$/);
+    if (slugMatch) {
+        var thumbRe = new RegExp(
+            "https://assets\\.science\\.nasa\\.gov/dynamicimage/assets/science/esd/eo/images/iotd/"
+            + escapeRegExp(slugMatch[1])
+            + "/[^\"'\\s?]+\\.(?:jpg|jpeg|png)", "i");
+        var thumbMatch = contentHtml.match(thumbRe);
+        if (thumbMatch) {
+            thumbnailUrl = thumbMatch[0];
+        }
     }
 
     // Extract title
@@ -78,45 +106,6 @@ function parseResponse(responseText, isPortrait) {
         }
     }
 
-    // Extract full content block for image URLs
-    var contentHtml = "";
-    var contentMatch = item.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/);
-    if (contentMatch) {
-        contentHtml = contentMatch[1];
-        var ccData = contentHtml.match(/<!\[CDATA\[([\s\S]*?)\]\]>/);
-        if (ccData) {
-            contentHtml = ccData[1];
-        }
-    }
-
-    // Prefer the large JPEG from the Downloads section:
-    //   https://assets.science.nasa.gov/content/dam/science/esd/eo/images/iotd/.../<name>_lrg.jpg
-    var imageUrl = "";
-    var largeMatch = contentHtml.match(/https:\/\/assets\.science\.nasa\.gov\/content\/dam\/science\/esd\/eo\/images\/iotd\/[^"'\s]+?_lrg\.(?:jpg|jpeg|png)/i);
-    if (largeMatch) {
-        imageUrl = largeMatch[0];
-    }
-
-    // Thumbnail: first dynamicimage URL in the content (crop off query string for a clean URL)
-    var thumbnailUrl = "";
-    var thumbMatch = contentHtml.match(/https:\/\/assets\.science\.nasa\.gov\/dynamicimage\/assets\/science\/esd\/eo\/images\/iotd\/[^"'\s?]+\.(?:jpg|jpeg|png)/i);
-    if (thumbMatch) {
-        thumbnailUrl = thumbMatch[0];
-    }
-
-    // Fallback: derive from the large URL if thumbnail missing
-    if (!thumbnailUrl && imageUrl) {
-        thumbnailUrl = imageUrl;
-    }
-    // Fallback: if large missing but thumbnail present, try deriving an _lrg variant
-    if (!imageUrl && thumbnailUrl) {
-        imageUrl = thumbnailUrl.replace(/\.(jpg|jpeg|png)$/i, "_lrg.$1");
-    }
-
-    if (!imageUrl) {
-        return null;
-    }
-
     var copyright = "NASA Earth Observatory";
 
     return {
@@ -128,4 +117,25 @@ function parseResponse(responseText, isPortrait) {
         copyrightLink: link,
         copyrightText: copyright
     };
+}
+
+function parseResponse(responseText, isPortrait) {
+    // The feed mixes Earth Observatory and Photojournal items, so keep only the
+    // ones categorised as "Earth Observatory", then take the most recent of
+    // those that actually provides a still image.
+    var allItems = responseText.match(/<item>[\s\S]*?<\/item>/g);
+    if (!allItems) {
+        return null;
+    }
+
+    for (var i = 0; i < allItems.length; i++) {
+        if (allItems[i].indexOf("Earth Observatory") === -1) {
+            continue;
+        }
+        var result = parseItem(allItems[i]);
+        if (result) {
+            return result;
+        }
+    }
+    return null;
 }

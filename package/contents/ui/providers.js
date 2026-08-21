@@ -1,15 +1,15 @@
 .import "provider-bing.js" as BingProvider
-    .import "provider-bpod.js" as BpodProvider
-        .import "provider-chandra.js" as ChandraProvider
-            .import "provider-dscovr.js" as DscovrProvider
-                .import "provider-euspace.js" as EuSpaceProvider
-                    .import "provider-earthobservatory.js" as EarthObservatoryProvider
-                        .import "provider-eso.js" as EsoProvider
-                            .import "provider-hubble.js" as HubbleProvider
-                                .import "provider-nasa.js" as NasaProvider
-                                    .import "provider-spotlight.js" as SpotlightProvider
-                                        .import "provider-webb.js" as WebbProvider
-                                            .import "provider-wikimedia.js" as WikimediaProvider
+.import "provider-bpod.js" as BpodProvider
+.import "provider-chandra.js" as ChandraProvider
+.import "provider-dscovr.js" as DscovrProvider
+.import "provider-euspace.js" as EuSpaceProvider
+.import "provider-earthobservatory.js" as EarthObservatoryProvider
+.import "provider-eso.js" as EsoProvider
+.import "provider-hubble.js" as HubbleProvider
+.import "provider-nasa.js" as NasaProvider
+.import "provider-spotlight.js" as SpotlightProvider
+.import "provider-webb.js" as WebbProvider
+.import "provider-wikimedia.js" as WikimediaProvider
 
 // To add a new provider:
 //   1. Create provider-<name>.js with buildUrl(market) and parseResponse(text, isPortrait)
