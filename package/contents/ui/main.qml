@@ -50,6 +50,26 @@ WallpaperItem {
 
     readonly property string lastFetchDate: main.configuration.LastFetchDate || ""
 
+    // Caption of the image that is being loaded. It is copied onto the Image
+    // item at creation time and only becomes visible when that item reaches the
+    // stack, so the text always matches the picture actually on screen.
+    property string pendingOverlayText: ""
+
+    function composeOverlayText(title, description) {
+        var t = title || "";
+        var d = description || "";
+        if (t !== "" && d !== "")
+            return t + " - " + d;
+        return t !== "" ? t : d;
+    }
+
+    // Used when the caption changes but the picture does not, so the overlay
+    // would otherwise keep showing the previous text.
+    function updateDisplayedOverlayText() {
+        if (root.currentItem)
+            root.currentItem.overlayText = main.pendingOverlayText;
+    }
+
     function log(msg) {
         console.log("PotD Enhanced: " + msg);
     }
@@ -158,10 +178,12 @@ WallpaperItem {
         main.configuration.LastParsedCopyright = result.copyright;
         main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
         main.configuration.CachedProvider = main.provider;
+        main.pendingOverlayText = composeOverlayText(result.title, result.description);
 
         if (result.imageUrl === lastLoadedUrl) {
             log("Same image as current, skipping load");
             wallpaper.configuration.writeConfig();
+            updateDisplayedOverlayText();
             isLoading = false;
             return;
         }
@@ -193,6 +215,9 @@ WallpaperItem {
             main.configuration.CachedImageUrl = "";
             if (cachedUrl !== "") {
                 log("Using cached image URL from config: " + cachedUrl);
+                // The config dialog stored title/description together with the
+                // cached URL, so they describe this very image.
+                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription);
                 var oldUrl = main.currentUrl.toString();
                 main.currentUrl = cachedUrl;
                 main.configuration.CachedProvider = main.provider;
@@ -247,6 +272,7 @@ WallpaperItem {
             }
             if (urlStr === lastLoadedUrl && main.pendingImage) {
                 log("Skipping duplicate load");
+                updateDisplayedOverlayText();
                 isLoading = false;
                 return;
             }
@@ -265,7 +291,8 @@ WallpaperItem {
             main.pendingImage = mainImage.createObject(root, {
                 "source": main.currentUrl,
                 "fillMode": main.fillMode,
-                "sourceSize": main.sourceSize
+                "sourceSize": main.sourceSize,
+                "overlayText": main.pendingOverlayText
             });
         } catch (e) {
             log("Error in loadImage: " + e);
@@ -317,6 +344,7 @@ WallpaperItem {
                 refreshImage();
             } else if (lastValidImagePath && lastValidImagePath !== "") {
                 log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
+                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription);
                 main.currentUrl = lastValidImagePath;
             } else {
                 log("Already fetched today (" + today + ") but no cached image - refreshing");
@@ -446,6 +474,9 @@ WallpaperItem {
             Image {
                 id: imageItem
 
+                // Caption shown by the overlay while this image is on screen.
+                property string overlayText: ""
+
                 asynchronous: true
                 cache: true
                 autoTransform: true
@@ -534,15 +565,9 @@ WallpaperItem {
     Text {
         id: overlayLabel
 
-        readonly property string overlayText: {
-            var title = main.configuration.LastTitle || "";
-            var desc = main.configuration.LastDescription || "";
-            if (title !== "" && desc !== "")
-                return title + " - " + desc;
-            if (title !== "")
-                return title;
-            return desc;
-        }
+        // Follows the image currently on the stack, so the caption appears (and
+        // changes) together with the picture it belongs to, never before it.
+        readonly property string overlayText: root.currentItem ? (root.currentItem.overlayText || "") : ""
 
         visible: main.configuration && main.configuration.ShowOverlay && overlayText !== ""
         text: overlayText
