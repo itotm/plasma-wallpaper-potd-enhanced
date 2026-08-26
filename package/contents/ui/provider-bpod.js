@@ -34,7 +34,14 @@ function parseResponse(responseText, isPortrait) {
         .replace(/&lt;/g, "<")
         .replace(/&gt;/g, ">")
         .replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"');
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&#8217;/g, "\u2019")
+        .replace(/&#8216;/g, "\u2018")
+        .replace(/&#8220;/g, "\u201C")
+        .replace(/&#8221;/g, "\u201D")
+        .replace(/&hellip;/g, "\u2026")
+        .replace(/&nbsp;/g, " ");
 
     // --- Image (FIRST img only, avoid thumbnail) ---
     var imageUrl = "";

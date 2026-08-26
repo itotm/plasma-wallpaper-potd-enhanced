@@ -47,7 +47,9 @@ function parseResponse(responseText, isPortrait) {
         title: title,
         description: "",
         copyright: copyright,
-        copyrightLink: imageUrl,
+        // The Spotlight API does not expose a copyright page, so leave the
+        // link empty instead of pointing it at the raw image file.
+        copyrightLink: "",
         copyrightText: copyright
     };
 }

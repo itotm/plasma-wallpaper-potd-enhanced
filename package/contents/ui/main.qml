@@ -55,9 +55,13 @@ WallpaperItem {
     // stack, so the text always matches the picture actually on screen.
     property string pendingOverlayText: ""
 
-    function composeOverlayText(title, description) {
+    function composeOverlayText(title, description, copyright) {
         var t = title || "";
         var d = description || "";
+        // If there is no description, fall back to the copyright holder so the
+        // overlay still shows something meaningful.
+        if (d === "")
+            d = copyright || "";
         if (t !== "" && d !== "")
             return t + " - " + d;
         return t !== "" ? t : d;
@@ -178,7 +182,7 @@ WallpaperItem {
         main.configuration.LastParsedCopyright = result.copyright;
         main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
         main.configuration.CachedProvider = main.provider;
-        main.pendingOverlayText = composeOverlayText(result.title, result.description);
+        main.pendingOverlayText = composeOverlayText(result.title, result.description, result.copyright);
 
         if (result.imageUrl === lastLoadedUrl) {
             log("Same image as current, skipping load");
@@ -217,7 +221,7 @@ WallpaperItem {
                 log("Using cached image URL from config: " + cachedUrl);
                 // The config dialog stored title/description together with the
                 // cached URL, so they describe this very image.
-                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription);
+                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
                 var oldUrl = main.currentUrl.toString();
                 main.currentUrl = cachedUrl;
                 main.configuration.CachedProvider = main.provider;
@@ -344,7 +348,7 @@ WallpaperItem {
                 refreshImage();
             } else if (lastValidImagePath && lastValidImagePath !== "") {
                 log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
-                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription);
+                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
                 main.currentUrl = lastValidImagePath;
             } else {
                 log("Already fetched today (" + today + ") but no cached image - refreshing");
@@ -551,7 +555,7 @@ WallpaperItem {
 
                 from: 0
                 to: 1
-                duration: main.doesSkipAnimation ? 1 : Math.round(Kirigami.Units.longDuration * 2.5)
+                duration: Math.round(Kirigami.Units.longDuration * 2.5)
             }
         }
 
