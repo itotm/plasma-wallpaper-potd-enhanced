@@ -29,6 +29,10 @@ WallpaperItem {
     readonly property int fetchPhaseTimeoutMs: ((main.retryRequestCount + 1) * (60 + main.retryRequestDelay) + 60) * 1000
     // Time allowed for the image download/decode phase.
     readonly property int imageLoadPhaseTimeoutMs: 180000
+    // How old the last fetch must be before the hourly auto-refresh kicks in.
+    readonly property int hourlyRefreshIntervalMs: 3600000
+    // Cadence of the hourly-refresh check timer.
+    readonly property int hourlyCheckIntervalMs: 300000
     property Item pendingImage
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
@@ -175,6 +179,7 @@ WallpaperItem {
             isLoading = false;
             return;
         }
+        main.configuration.LastRefreshTime = Date.now().toString();
         main.configuration.LastCopyrightText = result.copyrightText;
         main.configuration.LastCopyrightLink = result.copyrightLink;
         main.configuration.LastTitle = result.title;
@@ -219,6 +224,9 @@ WallpaperItem {
             main.configuration.CachedImageUrl = "";
             if (cachedUrl !== "") {
                 log("Using cached image URL from config: " + cachedUrl);
+                // The config dialog fetched this image moments ago, so the
+                // hourly auto-refresh countdown starts from now.
+                main.configuration.LastRefreshTime = Date.now().toString();
                 // The config dialog stored title/description together with the
                 // cached URL, so they describe this very image.
                 main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
@@ -310,6 +318,11 @@ WallpaperItem {
     anchors.fill: parent
     onCurrentUrlChanged: loadImage()
     onRefreshSignalChanged: {
+        // At startup the binding flips from the default to the stored config
+        // value, which is not a real "Apply" from the config dialog: acting on
+        // it would trigger a spurious second fetch racing the initial refresh.
+        if (!_initialRefreshDone)
+            return;
         _fromConfigApply = true;
         Qt.callLater(refreshImage);
     }
@@ -447,20 +460,43 @@ WallpaperItem {
         }
     }
 
-    // Auto refresh timer for providers that update frequently (Spotlight, DSCOVR).
-    // Only acts when the "Enable Hourly Refresh" option is checked in config.
+    // Hourly auto-refresh for providers that update frequently (Spotlight,
+    // DSCOVR), gated by the "Enable Hourly Refresh" config option.
+    //
+    // Deliberately NOT a single one-hour timer: a fire lost for any reason
+    // (event coalescing, suspend, instance teardown) would silently stop the
+    // rotation for good, and a restart would reset the countdown. Instead the
+    // last successful fetch time is persisted in the config and checked every
+    // few minutes, so a missed check only delays the refresh by one tick.
+    function checkHourlyRefresh() {
+        if (main.provider !== "spotlight" && main.provider !== "dscovr")
+            return;
+        if (!main.configuration || !main.configuration.EnableHourlyRefresh)
+            return;
+        if (isLoading)
+            return;
+        var last = parseInt(main.configuration.LastRefreshTime || "0", 10);
+        if (isNaN(last))
+            last = 0;
+        var elapsed = Date.now() - last;
+        // Half a tick of tolerance: the check grid is not aligned with the
+        // fetch timestamps, so without it the refresh lands on the tick AFTER
+        // the full hour (~65 min cadence) instead of the one closest to it.
+        // elapsed < 0 means the clock moved backwards: treat the stamp as
+        // stale rather than waiting for the clock to catch up.
+        if (elapsed >= hourlyRefreshIntervalMs - hourlyCheckIntervalMs / 2 || elapsed < 0) {
+            log("Hourly refresh due (last fetch "
+                + (last === 0 ? "never" : Math.round(elapsed / 60000) + " min ago") + ")");
+            refreshImage();
+        }
+    }
+
     Timer {
-        id: spotlightRefreshTimer
-        interval: 3600000
+        id: hourlyRefreshTimer
+        interval: main.hourlyCheckIntervalMs
         repeat: true
         running: true
-        onTriggered: {
-            if ((main.provider === "spotlight" || main.provider === "dscovr") && 
-                main.configuration && 
-                main.configuration.EnableHourlyRefresh) {
-                refreshImage()
-            }
-        }
+        onTriggered: checkHourlyRefresh()
     }
 
     QQC2.StackView {
@@ -584,21 +620,21 @@ WallpaperItem {
         width: Math.min(implicitWidth, main.width * 0.7)
 
         horizontalAlignment: {
-            var pos = main.configuration.OverlayPosition || "bottom-left";
+            var pos = (main.configuration && main.configuration.OverlayPosition) || "bottom-left";
             if (pos === "top-right" || pos === "bottom-right")
                 return Text.AlignRight;
             return Text.AlignLeft;
         }
 
         x: {
-            var pos = main.configuration.OverlayPosition || "bottom-left";
+            var pos = (main.configuration && main.configuration.OverlayPosition) || "bottom-left";
             if (pos === "top-right" || pos === "bottom-right")
                 return main.width - width - 10;
             return 10;
         }
 
         y: {
-            var pos = main.configuration.OverlayPosition || "bottom-left";
+            var pos = (main.configuration && main.configuration.OverlayPosition) || "bottom-left";
             if (pos === "top-left" || pos === "top-right")
                 return 10;
             return main.height - height - 40;

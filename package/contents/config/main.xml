@@ -69,6 +69,10 @@
       <label>Date of the last successful wallpaper fetch (YYYY-MM-DD)</label>
       <default></default>
     </entry>
+    <entry name="LastRefreshTime" type="String">
+      <label>Epoch milliseconds of the last successful fetch, used by the hourly auto-refresh</label>
+      <default></default>
+    </entry>
     <entry name="CachedProvider" type="String">
       <label>Provider that produced the currently cached image</label>
       <default></default>
