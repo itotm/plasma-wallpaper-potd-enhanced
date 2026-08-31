@@ -6,6 +6,7 @@ import org.kde.plasma.core 2.0 as PlasmaCore
 import org.kde.plasma.plasmoid
 import "utils.js" as Utils
 import "providers.js" as Providers
+import "imagecache.js" as ImageCache
 
 WallpaperItem {
     id: main
@@ -34,6 +35,12 @@ WallpaperItem {
     // Cadence of the hourly-refresh check timer.
     readonly property int hourlyCheckIntervalMs: 300000
     property Item pendingImage
+    // Cached-restore image (data URI) being decoded. Kept separate from
+    // pendingImage so the fetch/load state machine never confuses the two.
+    property Item pendingCachedImage
+    // Http URL whose cached (data URI) copy was put on screen from the
+    // persistent image cache.
+    property string cachedDisplayedUrl: ""
     readonly property string lastValidImagePath: main.configuration.lastValidImagePath || ""
     property bool isLoading: false
     property string lastLoadedUrl: ""
@@ -82,6 +89,57 @@ WallpaperItem {
         console.log("PotD Enhanced: " + msg);
     }
 
+    // Displays a data URI restored from the persistent cache without touching
+    // the fetch/load state machine (isLoading, watchdog, lastLoadedUrl): a
+    // refresh can keep running in parallel and will replace this image when
+    // its own picture lands on the stack.
+    function _showCachedImage(dataUri) {
+        _dropPendingCachedImage();
+        main.pendingCachedImage = mainImage.createObject(root, {
+            "source": dataUri,
+            "fillMode": main.fillMode,
+            "sourceSize": main.sourceSize,
+            "overlayText": main.pendingOverlayText,
+            "isCachedRestore": true
+        });
+    }
+
+    function _dropPendingCachedImage() {
+        if (main.pendingCachedImage) {
+            main.pendingCachedImage.destroy();
+            main.pendingCachedImage = null;
+        }
+    }
+
+    // Best-effort persistent caching: the Image element cannot expose its
+    // decoded bytes, so the file is downloaded once more via XHR and stored
+    // as a data URI in the shared LocalStorage cache. On the next plasmashell
+    // start the cached copy is displayed instantly, without network.
+    function cacheImage(url) {
+        try {
+            if (!Utils.isHttpUrl(url))
+                return;
+            if (ImageCache.has(url)) {
+                ImageCache.touch(url);
+                return;
+            }
+            if (ImageCache.isPending(url))
+                return;
+            ImageCache.markPending(url);
+            Utils.httpGetBinary(url, function(buf, contentType) {
+                ImageCache.clearPending(url);
+                var dataUri = Utils.arrayBufferToDataUri(buf, contentType);
+                if (dataUri !== "" && ImageCache.store(url, dataUri))
+                    log("Cached image for next startup (" + Math.round(dataUri.length / 1024) + " KiB)");
+            }, function(err) {
+                ImageCache.clearPending(url);
+                log("Image caching failed (non-fatal): " + err);
+            });
+        } catch (e) {
+            log("Image caching error (non-fatal): " + e);
+        }
+    }
+
     // force: cancel any run already in progress instead of bailing out. Used by
     // user-initiated refreshes so they are never swallowed by a long retry chain.
     function refreshImage(force) {
@@ -100,6 +158,7 @@ WallpaperItem {
                 main.pendingImage.destroy();
                 main.pendingImage = null;
             }
+            _dropPendingCachedImage();
             lastLoadedUrl = "";
         }
         isLoading = true;
@@ -189,8 +248,19 @@ WallpaperItem {
         main.configuration.CachedProvider = main.provider;
         main.pendingOverlayText = composeOverlayText(result.title, result.description, result.copyright);
 
-        if (result.imageUrl === lastLoadedUrl) {
-            log("Same image as current, skipping load");
+        // The image is already on screen either as a live load or as the
+        // cached copy restored at startup: no need to download it again.
+        var cachedCopyOnScreen = result.imageUrl !== ""
+            && result.imageUrl === cachedDisplayedUrl
+            && root.currentItem && root.currentItem.isCachedRestore === true;
+        if (result.imageUrl === lastLoadedUrl || cachedCopyOnScreen) {
+            log(cachedCopyOnScreen
+                ? "Fetched image matches the cached copy on screen, skipping load"
+                : "Same image as current, skipping load");
+            // The fetch itself succeeded: record it so the daily check does
+            // not refetch, and keep the cache entry alive in the LRU prune.
+            main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
+            ImageCache.touch(result.imageUrl);
             wallpaper.configuration.writeConfig();
             updateDisplayedOverlayText();
             isLoading = false;
@@ -328,6 +398,8 @@ WallpaperItem {
     }
     onProviderChanged: {
         if (_initialRefreshDone) {
+            _dropPendingCachedImage();
+            cachedDisplayedUrl = "";
             if (isLoading) {
                 // Provider changed while a fetch is in progress: queue a refresh
                 // once the current load finishes.
@@ -356,9 +428,26 @@ WallpaperItem {
             var today = new Date().toISOString().substring(0, 10);
             var cachedProv = main.configuration.CachedProvider || "";
             var providerMismatch = cachedProv !== "" && cachedProv !== provider;
-            if (provider === "spotlight" || lastFetchDate !== today || providerMismatch) {
+            var needRefresh = provider === "spotlight" || lastFetchDate !== today || providerMismatch;
+
+            // Whether a refresh is due or not, put the persisted copy of the
+            // last image on screen right away: it shows instantly, without
+            // network, and is simply replaced if a newer image arrives.
+            var cachedData = "";
+            if (!providerMismatch && lastValidImagePath !== "")
+                cachedData = ImageCache.get(lastValidImagePath);
+            if (cachedData !== "") {
+                log("Showing cached copy of last image: " + lastValidImagePath);
+                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+                cachedDisplayedUrl = lastValidImagePath;
+                _showCachedImage(cachedData);
+            }
+
+            if (needRefresh) {
                 log("Refreshing (provider=" + provider + ", cached=" + cachedProv + ", lastFetch=" + (lastFetchDate || "none") + ", today=" + today + ")");
                 refreshImage();
+            } else if (cachedData !== "") {
+                log("Already fetched today (" + today + ") - cached copy shown, no network needed");
             } else if (lastValidImagePath && lastValidImagePath !== "") {
                 log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
                 main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
@@ -388,8 +477,13 @@ WallpaperItem {
             text: i18n("Open Wallpaper")
             icon.name: "folder-open"
             onTriggered: {
-                if (main.currentUrl && main.currentUrl.toString() !== "")
-                    Qt.openUrlExternally(main.currentUrl);
+                // When only the cached copy is on screen, currentUrl is empty:
+                // open the http URL the copy was made from instead.
+                var url = main.currentUrl ? main.currentUrl.toString() : "";
+                if (url === "")
+                    url = main.cachedDisplayedUrl || main.configuration.lastValidImagePath || "";
+                if (url !== "")
+                    Qt.openUrlExternally(url);
             }
         },
         PlasmaCore.Action {
@@ -516,6 +610,9 @@ WallpaperItem {
 
                 // Caption shown by the overlay while this image is on screen.
                 property string overlayText: ""
+                // True for an image restored from the persistent cache (data
+                // URI): it bypasses the fetch/load state machine entirely.
+                property bool isCachedRestore: false
 
                 asynchronous: true
                 cache: true
@@ -524,8 +621,41 @@ WallpaperItem {
                 onStatusChanged: {
                     // Ignore status changes from images that are not the
                     // current pending one (e.g. destroyed/stale instances).
-                    if (imageItem !== main.pendingImage)
+                    if (imageItem !== main.pendingImage && imageItem !== main.pendingCachedImage)
                         return;
+                    if (isCachedRestore) {
+                        if (status === Image.Error) {
+                            // Corrupt cache entry: drop it, the normal
+                            // fetch/retry path is unaffected and will recover.
+                            log("Cached image failed to decode, dropping it");
+                            main.pendingCachedImage = null;
+                            imageItem.destroy();
+                            // If nothing else is on screen or in flight (i.e.
+                            // no refresh was due today), fall back to loading
+                            // the network copy of the same image.
+                            if (!root.currentItem && !isLoading && main.cachedDisplayedUrl !== "") {
+                                log("Loading network copy instead: " + main.cachedDisplayedUrl);
+                                main.currentUrl = main.cachedDisplayedUrl;
+                            }
+                        } else if (status === Image.Ready) {
+                            main.pendingCachedImage = null;
+                            if (root.currentItem && !root.currentItem.isCachedRestore) {
+                                // A freshly fetched image reached the stack
+                                // first: this restore is obsolete.
+                                imageItem.destroy();
+                                return;
+                            }
+                            log("Cached image displayed");
+                            if (root.depth === 0)
+                                root.push(imageItem);
+                            else
+                                root.replace(imageItem);
+                            // Deliberately do NOT touch isLoading, _everLoaded
+                            // or the watchdog: a refresh may be running in
+                            // parallel and must keep its own state.
+                        }
+                        return;
+                    }
                     if (status === Image.Error) {
                         log("Error loading image");
                         var failedUrl = lastLoadedUrl;
@@ -553,11 +683,20 @@ WallpaperItem {
                             log("Image load retries exhausted");
                             _imageLoadRetryCount = 0;
                             // Fall back to the last known good image, unless it
-                            // is the one that just failed.
+                            // is the one that just failed. Prefer the cached
+                            // copy: the network is evidently unreliable here.
                             var fallbackPath = main.configuration.lastValidImagePath || "";
                             if (fallbackPath !== "" && fallbackPath !== failedUrl) {
-                                log("Falling back to last valid image: " + fallbackPath);
-                                main.currentUrl = fallbackPath;
+                                var cachedData = ImageCache.get(fallbackPath);
+                                if (cachedData !== "") {
+                                    log("Falling back to cached copy of last valid image: " + fallbackPath);
+                                    main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+                                    main.cachedDisplayedUrl = fallbackPath;
+                                    main._showCachedImage(cachedData);
+                                } else {
+                                    log("Falling back to last valid image: " + fallbackPath);
+                                    main.currentUrl = fallbackPath;
+                                }
                             }
                         }
                     } else if (status === Image.Ready) {
@@ -569,6 +708,9 @@ WallpaperItem {
                         if (Utils.isHttpUrl(source)) {
                             main.configuration.lastValidImagePath = source.toString();
                             wallpaper.configuration.writeConfig();
+                            // Persist a copy so the next shell start can show
+                            // it instantly, before any network is available.
+                            main.cacheImage(source.toString());
                         }
                         if (root.currentItem !== imageItem) {
                             if (root.depth === 0)

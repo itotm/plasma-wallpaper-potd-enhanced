@@ -26,6 +26,10 @@ multiple providers, with copyright overlay and region selection.
 - **Error notifications**: system notification after 3 consecutive failures.
 - **Retry mechanism**: configurable retry count and delay on network errors.
 - **Fallback**: caches the last valid image and restores it on failure.
+- **Instant startup**: a copy of the last wallpaper is persisted (QML
+  LocalStorage) and shown immediately at login, before the network is up; it
+  is replaced seamlessly once a fresh image is fetched. With multiple
+  monitors each screen restores its own image from a shared, URL-keyed cache.
 - **Smooth fade transition** between wallpaper changes.
 - **HiDPI support**: image source size adapts to screen DPI.
 
