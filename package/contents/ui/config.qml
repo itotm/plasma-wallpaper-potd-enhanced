@@ -33,6 +33,9 @@ Item {
 
     property bool isFetchingPreview: false
     property bool _refetchToggled: false
+    // Incremented by every preview fetch: callbacks of an older fetch (e.g.
+    // the previous provider, answering late) are ignored.
+    property int _previewGeneration: 0
 
     readonly property string currentThumbnailSource: hasPreview
         ? previewThumbnail
@@ -82,13 +85,21 @@ Item {
             market = Utils.detectMarket();
         }
 
+        // Forget the previous preview before starting: if this fetch fails,
+        // Apply must not reuse the image URL (or the caption) of the provider
+        // or region selected before.
+        _previewGeneration++;
+        hasPreview = false;
+        cfg_CachedImageUrl = "";
+        syncMetadata();
+
         isFetchingPreview = true;
         var url = Providers.buildUrl(provider, market);
         console.log("PotD Enhanced config: Fetching preview from " + provider + ": " + url);
-        _fetchPreviewFromUrl(provider, market, url, false);
+        _fetchPreviewFromUrl(provider, market, url, false, _previewGeneration);
     }
 
-    function _applyPreviewResult(result, responseText, provider, isFallback) {
+    function _applyPreviewResult(result) {
         previewThumbnail = result.thumbnailUrl;
         previewTitle = result.title;
         previewDescription = result.description;
@@ -105,48 +116,50 @@ Item {
         isFetchingPreview = false;
     }
 
-    function _fetchPreviewFromUrl(provider, market, url, isFallback) {
+    // Final failure of a preview fetch: keep showing the stored metadata.
+    function _previewFailed() {
+        isFetchingPreview = false;
+        syncMetadata();
+    }
+
+    // Tries the provider's fallback URL; returns false if it has none.
+    function _tryPreviewFallback(provider, market, generation, why) {
+        var fallbackUrl = Providers.buildFallbackUrl(provider, market);
+        if (!fallbackUrl)
+            return false;
+        console.log("PotD Enhanced config: " + why + ", trying fallback: " + fallbackUrl);
+        _fetchPreviewFromUrl(provider, market, fallbackUrl, true, generation);
+        return true;
+    }
+
+    function _fetchPreviewFromUrl(provider, market, url, isFallback, generation) {
         Utils.httpGet(url, function(responseText) {
+            if (generation !== _previewGeneration)
+                return;
             try {
                 var result = isFallback
                     ? Providers.parseFallbackResponse(provider, responseText, false)
                     : Providers.parseResponse(provider, responseText, false);
                 if (!result) {
-                    if (!isFallback) {
-                        var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                        if (fallbackUrl) {
-                            console.log("PotD Enhanced config: No result from primary, trying fallback: " + fallbackUrl);
-                            _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                            return;
-                        }
-                    }
-                    isFetchingPreview = false;
+                    if (!isFallback && _tryPreviewFallback(provider, market, generation, "No result from primary"))
+                        return;
+                    _previewFailed();
                     return;
                 }
-                _applyPreviewResult(result, responseText, provider, isFallback);
+                _applyPreviewResult(result);
             } catch (e) {
                 console.log("PotD Enhanced config: Preview parse error: " + e);
-                if (!isFallback) {
-                    var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                    if (fallbackUrl) {
-                        console.log("PotD Enhanced config: Parse failed, trying fallback: " + fallbackUrl);
-                        _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                        return;
-                    }
-                }
-                isFetchingPreview = false;
+                if (!isFallback && _tryPreviewFallback(provider, market, generation, "Parse failed"))
+                    return;
+                _previewFailed();
             }
         }, function(errorText) {
+            if (generation !== _previewGeneration)
+                return;
             console.log("PotD Enhanced config: Preview fetch failed: " + errorText);
-            if (!isFallback) {
-                var fallbackUrl = Providers.buildFallbackUrl(provider, market);
-                if (fallbackUrl) {
-                    console.log("PotD Enhanced config: Trying fallback: " + fallbackUrl);
-                    _fetchPreviewFromUrl(provider, market, fallbackUrl, true);
-                    return;
-                }
-            }
-            isFetchingPreview = false;
+            if (!isFallback && _tryPreviewFallback(provider, market, generation, "Primary failed"))
+                return;
+            _previewFailed();
         });
     }
 

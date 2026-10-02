@@ -140,6 +140,22 @@ function store(url, dataUri) {
     return true;
 }
 
+// Deletes an entry, e.g. one whose data failed to decode.
+function remove(url) {
+    if (!url || url === "")
+        return;
+    var db = _getDb();
+    if (!db)
+        return;
+    try {
+        db.transaction(function(tx) {
+            tx.executeSql("DELETE FROM image_cache WHERE url = ?", [url]);
+        });
+    } catch (e) {
+        _log("remove failed: " + e);
+    }
+}
+
 function isPending(url) {
     return _pending[url] === true;
 }

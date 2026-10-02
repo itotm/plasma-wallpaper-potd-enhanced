@@ -32,8 +32,11 @@ WallpaperItem {
     readonly property int imageLoadPhaseTimeoutMs: 180000
     // How old the last fetch must be before the hourly auto-refresh kicks in.
     readonly property int hourlyRefreshIntervalMs: 3600000
-    // Cadence of the hourly-refresh check timer.
-    readonly property int hourlyCheckIntervalMs: 300000
+    // Cadence of the periodic check timer (new day, provider change, hourly).
+    readonly property int periodicCheckIntervalMs: 300000
+    // Minimum gap between two automatic refresh attempts, so that a failing
+    // network does not trigger a new retry chain at every periodic check.
+    readonly property int autoRetryBackoffMs: 1800000
     property Item pendingImage
     // Cached-restore image (data URI) being decoded. Kept separate from
     // pendingImage so the fetch/load state machine never confuses the two.
@@ -52,7 +55,16 @@ WallpaperItem {
     property bool _everLoaded: false
     property bool _triedFallback: false
     property bool _fromConfigApply: false
-    property bool _pendingProviderRefresh: false
+    // True while the image URL resolved by the config dialog preview is being
+    // loaded: the dialog already wrote its metadata to the config.
+    property bool _loadingFromConfigApply: false
+    // Fetch result whose image is being loaded. Its metadata is written to the
+    // config only once the image is on screen, so a failed load never leaves
+    // the caption of one picture attached to another.
+    property var _pendingResult: null
+    // Epoch ms of the last automatic refresh attempt (0 = none pending). A
+    // double, since epoch milliseconds overflow an int.
+    property double _lastAutoAttempt: 0
     property int _startupRetryCount: 0
     property int _imageLoadRetryCount: 0
     // Incremented every time a new fetch starts. Async callbacks capture the
@@ -76,6 +88,21 @@ WallpaperItem {
         if (t !== "" && d !== "")
             return t + " - " + d;
         return t !== "" ? t : d;
+    }
+
+    // Caption of the image whose metadata is currently stored in the config.
+    function savedOverlayText() {
+        return composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+    }
+
+    function _writeResultMetadata(result, prov) {
+        main.configuration.LastCopyrightText = result.copyrightText;
+        main.configuration.LastCopyrightLink = result.copyrightLink;
+        main.configuration.LastTitle = result.title;
+        main.configuration.LastDescription = result.description;
+        main.configuration.LastParsedCopyright = result.copyright;
+        main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
+        main.configuration.CachedProvider = prov;
     }
 
     // Used when the caption changes but the picture does not, so the overlay
@@ -102,6 +129,16 @@ WallpaperItem {
             "overlayText": main.pendingOverlayText,
             "isCachedRestore": true
         });
+        _handleSettledStatus(main.pendingCachedImage);
+    }
+
+    // An image already in the pixmap cache can reach Ready (or Error) while
+    // createObject() is still running, i.e. before pendingImage /
+    // pendingCachedImage point to it: its handler then ignores the change and
+    // the load would hang until the watchdog. Replay it once assigned.
+    function _handleSettledStatus(item) {
+        if (item && item.status !== Image.Loading && item.status !== Image.Null)
+            item.handleStatus();
     }
 
     function _dropPendingCachedImage() {
@@ -127,10 +164,11 @@ WallpaperItem {
                 return;
             ImageCache.markPending(url);
             Utils.httpGetBinary(url, function(buf, contentType) {
-                ImageCache.clearPending(url);
-                var dataUri = Utils.arrayBufferToDataUri(buf, contentType);
-                if (dataUri !== "" && ImageCache.store(url, dataUri))
-                    log("Cached image for next startup (" + Math.round(dataUri.length / 1024) + " KiB)");
+                Utils.arrayBufferToDataUri(buf, contentType, function(dataUri) {
+                    ImageCache.clearPending(url);
+                    if (dataUri !== "" && ImageCache.store(url, dataUri))
+                        log("Cached image for next startup (" + Math.round(dataUri.length / 1024) + " KiB)");
+                });
             }, function(err) {
                 ImageCache.clearPending(url);
                 log("Image caching failed (non-fatal): " + err);
@@ -161,6 +199,11 @@ WallpaperItem {
             _dropPendingCachedImage();
             lastLoadedUrl = "";
         }
+        // This run supersedes any retry still scheduled by a previous one.
+        startupRetryTimer.stop();
+        imageLoadRetryTimer.stop();
+        _pendingResult = null;
+        _loadingFromConfigApply = false;
         isLoading = true;
         _triedFallback = false;
         _imageLoadRetryCount = 0;
@@ -222,7 +265,7 @@ WallpaperItem {
                     _handleFetchError("No image in fallback response");
                     return;
                 }
-                applyFetchResult(result);
+                applyFetchResult(result, prov);
             } catch (e) {
                 _handleFetchError("Fallback parse error: " + e);
             }
@@ -232,20 +275,16 @@ WallpaperItem {
         }, { retryDelay: main.retryRequestDelay * 1000, maxRetries: main.retryRequestCount });
     }
 
-    function applyFetchResult(result) {
+    // prov: the provider the result was fetched from. Not re-read from
+    // main.provider, which may have changed while the request was in flight.
+    function applyFetchResult(result, prov) {
         if (!main.configuration) {
             log("configuration not ready in applyFetchResult");
             isLoading = false;
             return;
         }
+        // The fetch itself succeeded: this is what the hourly countdown measures.
         main.configuration.LastRefreshTime = Date.now().toString();
-        main.configuration.LastCopyrightText = result.copyrightText;
-        main.configuration.LastCopyrightLink = result.copyrightLink;
-        main.configuration.LastTitle = result.title;
-        main.configuration.LastDescription = result.description;
-        main.configuration.LastParsedCopyright = result.copyright;
-        main.configuration.currentWallpaperThumbnail = result.thumbnailUrl;
-        main.configuration.CachedProvider = main.provider;
         main.pendingOverlayText = composeOverlayText(result.title, result.description, result.copyright);
 
         // The image is already on screen either as a live load or as the
@@ -259,7 +298,11 @@ WallpaperItem {
                 : "Same image as current, skipping load");
             // The fetch itself succeeded: record it so the daily check does
             // not refetch, and keep the cache entry alive in the LRU prune.
-            main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
+            // The picture is the same, so its metadata can be written now.
+            _pendingResult = null;
+            _writeResultMetadata(result, prov);
+            main.configuration.LastFetchDate = Utils.localDateString(new Date());
+            _lastAutoAttempt = 0;
             ImageCache.touch(result.imageUrl);
             wallpaper.configuration.writeConfig();
             updateDisplayedOverlayText();
@@ -268,6 +311,8 @@ WallpaperItem {
         }
 
         var oldUrl = main.currentUrl.toString();
+        // Set before currentUrl: assigning it starts the load right away.
+        _pendingResult = { result: result, provider: prov };
         main.currentUrl = result.imageUrl;
         wallpaper.configuration.writeConfig();
         if (main.currentUrl.toString() === oldUrl) {
@@ -292,6 +337,13 @@ WallpaperItem {
             _fromConfigApply = false;
             var cachedUrl = main.configuration.CachedImageUrl || "";
             main.configuration.CachedImageUrl = "";
+            // The config dialog preview is always fetched in landscape: on a
+            // portrait screen do a regular fetch, so the provider can return
+            // its portrait variant.
+            if (cachedUrl !== "" && main.height > main.width) {
+                log("Portrait screen - ignoring landscape preview URL: " + cachedUrl);
+                cachedUrl = "";
+            }
             if (cachedUrl !== "") {
                 log("Using cached image URL from config: " + cachedUrl);
                 // The config dialog fetched this image moments ago, so the
@@ -299,10 +351,13 @@ WallpaperItem {
                 main.configuration.LastRefreshTime = Date.now().toString();
                 // The config dialog stored title/description together with the
                 // cached URL, so they describe this very image.
-                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+                main.pendingOverlayText = savedOverlayText();
+                _loadingFromConfigApply = true;
+                // CachedProvider is written only once the image is on screen
+                // (see the Ready handler): if it never loads, the provider
+                // mismatch keeps the periodic check retrying.
                 var oldUrl = main.currentUrl.toString();
                 main.currentUrl = cachedUrl;
-                main.configuration.CachedProvider = main.provider;
                 wallpaper.configuration.writeConfig();
                 if (main.currentUrl.toString() === oldUrl) {
                     // currentUrl did not change, so onCurrentUrlChanged won't
@@ -334,7 +389,7 @@ WallpaperItem {
                     _handleFetchError("No image in response");
                     return;
                 }
-                applyFetchResult(result);
+                applyFetchResult(result, prov);
             } catch (e) {
                 _handleFetchError("Parse error: " + e);
             }
@@ -354,6 +409,7 @@ WallpaperItem {
             }
             if (urlStr === lastLoadedUrl && main.pendingImage) {
                 log("Skipping duplicate load");
+                _loadingFromConfigApply = false;
                 updateDisplayedOverlayText();
                 isLoading = false;
                 return;
@@ -376,6 +432,7 @@ WallpaperItem {
                 "sourceSize": main.sourceSize,
                 "overlayText": main.pendingOverlayText
             });
+            _handleSettledStatus(main.pendingImage);
         } catch (e) {
             log("Error in loadImage: " + e);
             isLoading = false;
@@ -383,6 +440,14 @@ WallpaperItem {
             lastLoadedUrl = "";
             main.pendingImage = null;
         }
+    }
+
+    // Config dialog "Apply" and provider changes are user-initiated: force the
+    // refresh so it cancels any run in progress instead of being dropped.
+    // Both handlers queue this same function, so Qt.callLater runs it once
+    // when an Apply changes the provider and flips RefetchSignal together.
+    function _runConfigRefresh() {
+        refreshImage(true);
     }
 
     anchors.fill: parent
@@ -394,20 +459,16 @@ WallpaperItem {
         if (!_initialRefreshDone)
             return;
         _fromConfigApply = true;
-        Qt.callLater(refreshImage);
+        Qt.callLater(_runConfigRefresh);
     }
     onProviderChanged: {
         if (_initialRefreshDone) {
             _dropPendingCachedImage();
             cachedDisplayedUrl = "";
-            if (isLoading) {
-                // Provider changed while a fetch is in progress: queue a refresh
-                // once the current load finishes.
-                _pendingProviderRefresh = true;
-                return;
-            }
-            root.clear();
-            Qt.callLater(refreshImage);
+            // The current picture stays on screen until the new provider's
+            // one replaces it: if the fetch fails (e.g. offline) the periodic
+            // check retries it, instead of leaving a black screen.
+            Qt.callLater(_runConfigRefresh);
         }
     }
     onWidthChanged: _tryInitialRefresh()
@@ -425,7 +486,7 @@ WallpaperItem {
         if (_initialRefreshDone) return;
         if (main.width > 0 && main.height > 0 && main.configuration) {
             _initialRefreshDone = true;
-            var today = new Date().toISOString().substring(0, 10);
+            var today = Utils.localDateString(new Date());
             var cachedProv = main.configuration.CachedProvider || "";
             var providerMismatch = cachedProv !== "" && cachedProv !== provider;
             var needRefresh = provider === "spotlight" || lastFetchDate !== today || providerMismatch;
@@ -438,7 +499,7 @@ WallpaperItem {
                 cachedData = ImageCache.get(lastValidImagePath);
             if (cachedData !== "") {
                 log("Showing cached copy of last image: " + lastValidImagePath);
-                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+                main.pendingOverlayText = savedOverlayText();
                 cachedDisplayedUrl = lastValidImagePath;
                 _showCachedImage(cachedData);
             }
@@ -450,7 +511,7 @@ WallpaperItem {
                 log("Already fetched today (" + today + ") - cached copy shown, no network needed");
             } else if (lastValidImagePath && lastValidImagePath !== "") {
                 log("Already fetched today (" + today + ") - loading last image: " + lastValidImagePath);
-                main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
+                main.pendingOverlayText = savedOverlayText();
                 main.currentUrl = lastValidImagePath;
             } else {
                 log("Already fetched today (" + today + ") but no cached image - refreshing");
@@ -462,14 +523,8 @@ WallpaperItem {
     onIsLoadingChanged: {
         if (isLoading)
             loadingTimeoutTimer.restart();
-        else {
+        else
             loadingTimeoutTimer.stop();
-            if (_pendingProviderRefresh) {
-                _pendingProviderRefresh = false;
-                root.clear();
-                Qt.callLater(refreshImage);
-            }
-        }
     }
 
     contextualActions: [
@@ -512,6 +567,8 @@ WallpaperItem {
                     main.pendingImage = null;
                 }
                 lastLoadedUrl = "";
+                _pendingResult = null;
+                _loadingFromConfigApply = false;
                 isLoading = false;
                 // During startup keep trying so the wallpaper eventually shows.
                 if (!_everLoaded && _startupRetryCount < maxStartupRetries) {
@@ -554,43 +611,69 @@ WallpaperItem {
         }
     }
 
-    // Hourly auto-refresh for providers that update frequently (Spotlight,
-    // DSCOVR), gated by the "Enable Hourly Refresh" config option.
+    // Periodic check, every few minutes, of the reasons to refetch while the
+    // shell keeps running (it may stay up for days across suspend/resume):
+    //  - the provider was changed but its image could not be fetched yet;
+    //  - a new day started (daily providers; for weekly/monthly ones the feed
+    //    returns the same image and the "same image" path skips the download);
+    //  - hourly auto-refresh for Spotlight/DSCOVR, if enabled.
     //
-    // Deliberately NOT a single one-hour timer: a fire lost for any reason
-    // (event coalescing, suspend, instance teardown) would silently stop the
-    // rotation for good, and a restart would reset the countdown. Instead the
-    // last successful fetch time is persisted in the config and checked every
-    // few minutes, so a missed check only delays the refresh by one tick.
-    function checkHourlyRefresh() {
+    // Deliberately NOT a single long timer: a fire lost for any reason (event
+    // coalescing, suspend, instance teardown) would silently stop the refresh
+    // for good, and a restart would reset the countdown. Instead the state is
+    // persisted in the config and re-evaluated at every tick, so a missed check
+    // only delays the refresh by one tick.
+    function checkPeriodicRefresh() {
+        if (!main.configuration || !_initialRefreshDone || isLoading)
+            return;
+        var now = Date.now();
+        // After an automatic attempt that did not land an image, wait before
+        // the next one: offline, every attempt runs a full retry chain.
+        if (_lastAutoAttempt > 0 && now - _lastAutoAttempt < autoRetryBackoffMs && now >= _lastAutoAttempt)
+            return;
+
+        var reason = "";
+        var cachedProv = main.configuration.CachedProvider || "";
+        if (cachedProv !== "" && cachedProv !== main.provider)
+            reason = "provider changed to " + main.provider + " but not fetched yet";
+        else if ((main.configuration.LastFetchDate || "") !== Utils.localDateString(new Date()))
+            reason = "new day (last fetch " + (main.configuration.LastFetchDate || "never") + ")";
+        else
+            reason = _hourlyRefreshReason(now);
+
+        if (reason !== "") {
+            log("Periodic refresh due: " + reason);
+            _lastAutoAttempt = now;
+            refreshImage();
+        }
+    }
+
+    // Returns why the hourly refresh is due, or "" if it is not.
+    function _hourlyRefreshReason(now) {
         if (main.provider !== "spotlight" && main.provider !== "dscovr")
-            return;
-        if (!main.configuration || !main.configuration.EnableHourlyRefresh)
-            return;
-        if (isLoading)
-            return;
+            return "";
+        if (!main.configuration.EnableHourlyRefresh)
+            return "";
         var last = parseInt(main.configuration.LastRefreshTime || "0", 10);
         if (isNaN(last))
             last = 0;
-        var elapsed = Date.now() - last;
+        var elapsed = now - last;
         // Half a tick of tolerance: the check grid is not aligned with the
         // fetch timestamps, so without it the refresh lands on the tick AFTER
         // the full hour (~65 min cadence) instead of the one closest to it.
         // elapsed < 0 means the clock moved backwards: treat the stamp as
         // stale rather than waiting for the clock to catch up.
-        if (elapsed >= hourlyRefreshIntervalMs - hourlyCheckIntervalMs / 2 || elapsed < 0) {
-            log("Hourly refresh due (last fetch "
-                + (last === 0 ? "never" : Math.round(elapsed / 60000) + " min ago") + ")");
-            refreshImage();
-        }
+        if (elapsed >= hourlyRefreshIntervalMs - periodicCheckIntervalMs / 2 || elapsed < 0)
+            return "hourly (last fetch " + (last === 0 ? "never" : Math.round(elapsed / 60000) + " min ago") + ")";
+        return "";
     }
 
     Timer {
-        id: hourlyRefreshTimer
-        interval: main.hourlyCheckIntervalMs
+        id: periodicCheckTimer
+        interval: main.periodicCheckIntervalMs
         repeat: true
         running: true
-        onTriggered: checkHourlyRefresh()
+        onTriggered: checkPeriodicRefresh()
     }
 
     QQC2.StackView {
@@ -618,16 +701,21 @@ WallpaperItem {
                 cache: true
                 autoTransform: true
                 smooth: true
-                onStatusChanged: {
+                onStatusChanged: handleStatus()
+
+                function handleStatus() {
                     // Ignore status changes from images that are not the
                     // current pending one (e.g. destroyed/stale instances).
                     if (imageItem !== main.pendingImage && imageItem !== main.pendingCachedImage)
                         return;
                     if (isCachedRestore) {
                         if (status === Image.Error) {
-                            // Corrupt cache entry: drop it, the normal
+                            // Corrupt cache entry: remove it from the cache too,
+                            // otherwise it would fail again at every start (and
+                            // block a valid copy from being stored). The normal
                             // fetch/retry path is unaffected and will recover.
                             log("Cached image failed to decode, dropping it");
+                            ImageCache.remove(main.cachedDisplayedUrl);
                             main.pendingCachedImage = null;
                             imageItem.destroy();
                             // If nothing else is on screen or in flight (i.e.
@@ -668,6 +756,8 @@ WallpaperItem {
                         if (!_everLoaded) {
                             // Startup phase: no image shown yet, keep retrying
                             // the whole fetch so the wallpaper eventually loads.
+                            main._pendingResult = null;
+                            main._loadingFromConfigApply = false;
                             if (_startupRetryCount < maxStartupRetries) {
                                 _startupRetryCount++;
                                 log("Scheduling startup retry " + _startupRetryCount + "/" + maxStartupRetries);
@@ -682,21 +772,56 @@ WallpaperItem {
                         } else {
                             log("Image load retries exhausted");
                             _imageLoadRetryCount = 0;
-                            // Fall back to the last known good image, unless it
-                            // is the one that just failed. Prefer the cached
-                            // copy: the network is evidently unreliable here.
+                            // The fetched picture never made it: its metadata
+                            // must not be committed.
+                            main._pendingResult = null;
+                            if (main._loadingFromConfigApply) {
+                                // The config dialog already wrote this image's
+                                // metadata: a full fetch rewrites it all
+                                // consistently with what ends up on screen.
+                                // Until then the stored metadata does not match
+                                // the picture on screen: clear the fetch date so
+                                // that, should the full fetch fail too, the
+                                // periodic check (or the next start) retries.
+                                main._loadingFromConfigApply = false;
+                                main.configuration.LastFetchDate = "";
+                                wallpaper.configuration.writeConfig();
+                                log("Preview image failed, doing a full fetch");
+                                Qt.callLater(main._runConfigRefresh);
+                                return;
+                            }
+                            // Fall back to the last known good image, with the
+                            // caption stored for it, unless it is the one that
+                            // just failed.
+                            main.pendingOverlayText = main.savedOverlayText();
                             var fallbackPath = main.configuration.lastValidImagePath || "";
-                            if (fallbackPath !== "" && fallbackPath !== failedUrl) {
-                                var cachedData = ImageCache.get(fallbackPath);
-                                if (cachedData !== "") {
-                                    log("Falling back to cached copy of last valid image: " + fallbackPath);
-                                    main.pendingOverlayText = composeOverlayText(main.configuration.LastTitle, main.configuration.LastDescription, main.configuration.LastParsedCopyright);
-                                    main.cachedDisplayedUrl = fallbackPath;
-                                    main._showCachedImage(cachedData);
-                                } else {
-                                    log("Falling back to last valid image: " + fallbackPath);
-                                    main.currentUrl = fallbackPath;
-                                }
+                            if (fallbackPath === "" || fallbackPath === failedUrl)
+                                return;
+                            var shown = root.currentItem;
+                            var fallbackOnScreen = shown && (shown.isCachedRestore
+                                ? main.cachedDisplayedUrl === fallbackPath
+                                : shown.source.toString() === fallbackPath);
+                            if (fallbackOnScreen) {
+                                // Usually the case: the previous picture never
+                                // left the screen. Just point currentUrl back
+                                // at it; loadImage skips it as a duplicate.
+                                log("Keeping last valid image on screen: " + fallbackPath);
+                                lastLoadedUrl = fallbackPath;
+                                main.pendingImage = shown;
+                                main.currentUrl = fallbackPath;
+                                main.updateDisplayedOverlayText();
+                                return;
+                            }
+                            // Prefer the cached copy: the network is evidently
+                            // unreliable here.
+                            var cachedData = ImageCache.get(fallbackPath);
+                            if (cachedData !== "") {
+                                log("Falling back to cached copy of last valid image: " + fallbackPath);
+                                main.cachedDisplayedUrl = fallbackPath;
+                                main._showCachedImage(cachedData);
+                            } else {
+                                log("Falling back to last valid image: " + fallbackPath);
+                                main.currentUrl = fallbackPath;
                             }
                         }
                     } else if (status === Image.Ready) {
@@ -704,14 +829,32 @@ WallpaperItem {
                         _everLoaded = true;
                         _startupRetryCount = 0;
                         _imageLoadRetryCount = 0;
-                        main.configuration.LastFetchDate = new Date().toISOString().substring(0, 10);
-                        if (Utils.isHttpUrl(source)) {
-                            main.configuration.lastValidImagePath = source.toString();
-                            wallpaper.configuration.writeConfig();
-                            // Persist a copy so the next shell start can show
-                            // it instantly, before any network is available.
-                            main.cacheImage(source.toString());
+                        var src = source.toString();
+                        // Only a freshly fetched (or config-applied) picture
+                        // counts as today's fetch: a fallback to the previous
+                        // one must not stop today's image from being retried.
+                        var committed = false;
+                        if (main._pendingResult && src === main.currentUrl.toString()) {
+                            main._writeResultMetadata(main._pendingResult.result, main._pendingResult.provider);
+                            main._pendingResult = null;
+                            committed = true;
+                        } else if (main._loadingFromConfigApply) {
+                            // The config dialog already wrote the metadata.
+                            main.configuration.CachedProvider = main.provider;
+                            committed = true;
                         }
+                        main._loadingFromConfigApply = false;
+                        if (committed) {
+                            main.configuration.LastFetchDate = Utils.localDateString(new Date());
+                            main._lastAutoAttempt = 0;
+                        }
+                        if (Utils.isHttpUrl(source))
+                            main.configuration.lastValidImagePath = src;
+                        wallpaper.configuration.writeConfig();
+                        // Persist a copy so the next shell start can show it
+                        // instantly, before any network is available.
+                        if (Utils.isHttpUrl(source))
+                            main.cacheImage(src);
                         if (root.currentItem !== imageItem) {
                             if (root.depth === 0)
                                 root.push(imageItem);

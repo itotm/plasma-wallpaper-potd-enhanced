@@ -24,6 +24,10 @@ multiple providers, with copyright overlay and region selection.
 - **Right-click context menu**: "Open Wallpaper" (all providers) and "Refresh
   Image" (Spotlight).
 - **Error notifications**: system notification after 3 consecutive failures.
+- **Automatic refresh**: a new image is fetched when the day changes, even if
+  the session stays open for days (suspend/resume); Spotlight and DSCOVR can
+  also refresh hourly. After a failure the next automatic attempt waits 30
+  minutes.
 - **Retry mechanism**: configurable retry count and delay on network errors.
 - **Fallback**: caches the last valid image and restores it on failure.
 - **Instant startup**: a copy of the last wallpaper is persisted (QML
