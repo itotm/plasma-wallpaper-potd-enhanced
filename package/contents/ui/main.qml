@@ -18,6 +18,9 @@ WallpaperItem {
         ? Image.PreserveAspectFit
         : Image.PreserveAspectCrop
     readonly property bool refreshSignal: main.configuration.RefetchSignal
+    // Image URL of the config dialog preview, written on Apply and cleared
+    // once used (see fetchImage).
+    readonly property string previewImageUrl: main.configuration.CachedImageUrl || ""
     readonly property string provider: main.configuration.Provider || "bing"
     readonly property int retryRequestDelay: main.configuration.RetryRequestDelay
     readonly property int retryRequestCount: main.configuration.RetryRequestCount
@@ -447,8 +450,9 @@ WallpaperItem {
 
     // Config dialog "Apply" and provider changes are user-initiated: force the
     // refresh so it cancels any run in progress instead of being dropped.
-    // Both handlers queue this same function, so Qt.callLater runs it once
-    // when an Apply changes the provider and flips RefetchSignal together.
+    // All the handlers queue this same function, so Qt.callLater runs it once
+    // when an Apply changes the provider, the preview URL and RefetchSignal
+    // together.
     function _runConfigRefresh() {
         refreshImage(true);
     }
@@ -460,6 +464,15 @@ WallpaperItem {
         // value, which is not a real "Apply" from the config dialog: acting on
         // it would trigger a spurious second fetch racing the initial refresh.
         if (!_initialRefreshDone)
+            return;
+        _fromConfigApply = true;
+        Qt.callLater(_runConfigRefresh);
+    }
+    // An Apply carrying a preview must show that very image (random providers
+    // like Spotlight return a different one at every request), even if
+    // RefetchSignal did not change.
+    onPreviewImageUrlChanged: {
+        if (!_initialRefreshDone || previewImageUrl === "")
             return;
         _fromConfigApply = true;
         Qt.callLater(_runConfigRefresh);

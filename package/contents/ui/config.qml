@@ -67,13 +67,18 @@ Item {
     // even when the preview fetch below fails: otherwise a provider/region
     // change made while the network is down is silently dropped, because
     // main.qml skips its refresh when it has already fetched today.
-    // Only once per config session, so repeated previews do not cancel out.
+    // Always the opposite of the stored value: repeated previews do not cancel
+    // out, and after an Apply (which stores it) the next preview flips it
+    // again, so every Apply of the same dialog session reaches the wallpaper.
     function _armRefetchSignal() {
+        if (wallpaperConfiguration) {
+            cfg_RefetchSignal = !wallpaperConfiguration.RefetchSignal;
+            return;
+        }
+        // No stored configuration to compare with: flip once per session.
         if (_refetchToggled)
             return;
-        cfg_RefetchSignal = !(wallpaperConfiguration
-            ? wallpaperConfiguration.RefetchSignal
-            : cfg_RefetchSignal);
+        cfg_RefetchSignal = !cfg_RefetchSignal;
         _refetchToggled = true;
     }
 
