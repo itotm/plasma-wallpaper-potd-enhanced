@@ -1,83 +1,28 @@
+.import "djangoplicity.js" as Djangoplicity
+
+// ESA/Webb Picture of the Month.
+//
+// The dedicated PotM feeds have no description (just "potm2609 - <title>"),
+// so the primary source is the feed with all the images of the site, where
+// the PotM appears with its full text; it is picked by its potmNNNNx id. If
+// it has already scrolled out of that feed, the FeedBurner PotM feed provides
+// the image without a description.
+
+var COPYRIGHT = "ESA/Webb";
+var POTM_LINK = /\/images\/potm\d{4}[a-z]\//;
+
 function buildUrl(market) {
-    return "https://esawebb.org/images/potm/feed/";
+    return "https://esawebb.org/images/feed/";
 }
 
 function buildFallbackUrl(market) {
     return "https://feeds.feedburner.com/esawebb/potm/";
 }
 
-function parseFallbackResponse(responseText, isPortrait) {
-    // The FeedBurner fallback feed uses the same RSS <item>/<enclosure>
-    // structure as the primary feed, so reuse the primary parser.
-    return parseResponse(responseText, isPortrait);
-}
-
-function stripHtml(html) {
-    return html.replace(/<[^>]*>/g, "").trim();
-}
-
 function parseResponse(responseText, isPortrait) {
-    // Extract the first <item> block (latest PotM)
-    var itemMatch = responseText.match(/<item>([\s\S]*?)<\/item>/);
-    if (!itemMatch) {
-        return null;
-    }
-    var item = itemMatch[1];
+    return Djangoplicity.parseFeed(responseText, COPYRIGHT, POTM_LINK);
+}
 
-    // Extract image URL from <enclosure> tag (screen size)
-    var enclosureMatch = item.match(/<enclosure[^>]*url="([^"]+)"/);
-    if (!enclosureMatch) {
-        return null;
-    }
-    var screenUrl = enclosureMatch[1];
-
-    // Use "large" size for wallpaper, "screen" for thumbnail
-    var imageUrl = screenUrl.replace("/screen/", "/large/");
-    var thumbnailUrl = screenUrl;
-
-    // Extract title
-    var title = "";
-    var titleMatch = item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-    if (titleMatch) {
-        title = titleMatch[1].replace(/\s+/g, " ").trim();
-    }
-
-    // Extract first text paragraph from description for short description
-    var description = "";
-    var descMatch = item.match(/<description>([\s\S]*?)<\/description>/);
-    if (descMatch) {
-        var descHtml = descMatch[1];
-        // Unwrap CDATA if present
-        var cdataMatch = descHtml.match(/<!\[CDATA\[([\s\S]*?)\]\]>/);
-        if (cdataMatch) {
-            descHtml = cdataMatch[1];
-        }
-        // Get first <p> tag content (skip the <img> tag)
-        var pMatch = descHtml.match(/<p>([\s\S]*?)<\/p>/);
-        if (pMatch) {
-            description = stripHtml(pMatch[1]).replace(/\s+/g, " ").trim();
-            if (description.length > 200) {
-                description = description.substring(0, 200).replace(/\s+\S*$/, "") + "…";
-            }
-        }
-    }
-
-    // Extract link
-    var link = "";
-    var linkMatch = item.match(/<link>([^<]+)<\/link>/);
-    if (linkMatch) {
-        link = linkMatch[1].trim();
-    }
-
-    var copyright = "ESA/Webb";
-
-    return {
-        imageUrl: imageUrl,
-        thumbnailUrl: thumbnailUrl,
-        title: title,
-        description: description,
-        copyright: copyright,
-        copyrightLink: link,
-        copyrightText: copyright
-    };
+function parseFallbackResponse(responseText, isPortrait) {
+    return Djangoplicity.parseFeed(responseText, COPYRIGHT, POTM_LINK);
 }

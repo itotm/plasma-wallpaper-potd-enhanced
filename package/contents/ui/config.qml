@@ -237,19 +237,33 @@ Item {
                 valueRole: "value"
                 model: [
                     { text: "Bing", value: "bing" },
-                    { text: "Biomedical PoD", value: "bpod" },
                     { text: "Chandra X-ray Observatory", value: "chandra" },
                     { text: "DSCOVR Earth", value: "dscovr" },
                     { text: "EU Space IotD", value: "euspace" },
-                    { text: "ESA Hubble PotW", value: "hubble" },
+                    { text: "ESA Hubble PotM", value: "hubble" },
                     { text: "ESA Webb PotM", value: "webb" },
                     { text: "ESO PotW", value: "eso" },
+                    { text: "GOES-East Earth (GOES-19)", value: "goeseast" },
+                    { text: "GOES-West Earth (GOES-18)", value: "goeswest" },
                     { text: "NASA APoD", value: "nasa" },
                     { text: "NASA Earth Observatory IotD", value: "earthobservatory" },
+                    { text: "NASA IotD", value: "nasaiotd" },
+                    { text: "NOIRLab IotW", value: "noirlab" },
+                    { text: "SDO Sun", value: "sdo" },
                     { text: "Spotlight", value: "spotlight" },
                     { text: "Wikimedia Commons", value: "wikimedia" }
                 ]
-                Component.onCompleted: currentIndex = indexOfValue(cfg_Provider)
+                Component.onCompleted: {
+                    var index = indexOfValue(cfg_Provider);
+                    if (index < 0) {
+                        // Provider no longer available (e.g. "bpod", removed
+                        // in 1.7): switch to the default instead of showing an
+                        // empty selection.
+                        cfg_Provider = "bing";
+                        index = indexOfValue(cfg_Provider);
+                    }
+                    currentIndex = index;
+                }
                 onActivated: {
                     cfg_Provider = currentValue;
                     hasPreview = false;
@@ -313,7 +327,7 @@ Item {
                         shadow.yOffset: 2
                         Kirigami.Theme.colorSet: Kirigami.Theme.View
                         Kirigami.Theme.inherit: false
-                        color: cfg_Provider === "dscovr"
+                        color: Providers.isFullDisk(cfg_Provider)
                             ? "black"
                             : Kirigami.Theme.alternateBackgroundColor
 
@@ -321,7 +335,7 @@ Item {
                             id: currentWallpaper
                             anchors.fill: parent
                             anchors.margins: 5
-                            fillMode: cfg_Provider === "dscovr"
+                            fillMode: Providers.isFullDisk(cfg_Provider)
                                 ? Image.PreserveAspectFit
                                 : Image.PreserveAspectCrop
                             source: currentThumbnailSource
@@ -427,8 +441,8 @@ Item {
                 text: i18n("Automatically refresh image every hour")
                 checked: cfg_EnableHourlyRefresh || false
                 onToggled: cfg_EnableHourlyRefresh = checked
-                enabled: cfg_Provider === "spotlight" || cfg_Provider === "dscovr"
-                ToolTip.text: i18n("Only available for Spotlight and DSCOVR providers")
+                enabled: Providers.supportsHourlyRefresh(cfg_Provider)
+                ToolTip.text: i18n("Only available for Spotlight, DSCOVR, GOES and SDO providers")
                 ToolTip.visible: hovered
             }
 

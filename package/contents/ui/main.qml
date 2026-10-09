@@ -7,13 +7,14 @@ import org.kde.plasma.plasmoid
 import "utils.js" as Utils
 import "providers.js" as Providers
 import "imagecache.js" as ImageCache
+import "text.js" as TextUtils
 
 WallpaperItem {
     id: main
 
     loading: false
     property url currentUrl
-    readonly property int fillMode: main.provider === "dscovr"
+    readonly property int fillMode: Providers.isFullDisk(main.provider)
         ? Image.PreserveAspectFit
         : Image.PreserveAspectCrop
     readonly property bool refreshSignal: main.configuration.RefetchSignal
@@ -85,9 +86,11 @@ WallpaperItem {
         // overlay still shows something meaningful.
         if (d === "")
             d = copyright || "";
+        // Descriptions are already shortened by the providers; this also
+        // covers the copyright used in their place, which can be long.
         if (t !== "" && d !== "")
-            return t + " - " + d;
-        return t !== "" ? t : d;
+            return TextUtils.ellipsize(t + " - " + d, TextUtils.OVERLAY_MAX_CHARS);
+        return TextUtils.ellipsize(t !== "" ? t : d, TextUtils.OVERLAY_MAX_CHARS);
     }
 
     // Caption of the image whose metadata is currently stored in the config.
@@ -616,7 +619,7 @@ WallpaperItem {
     //  - the provider was changed but its image could not be fetched yet;
     //  - a new day started (daily providers; for weekly/monthly ones the feed
     //    returns the same image and the "same image" path skips the download);
-    //  - hourly auto-refresh for Spotlight/DSCOVR, if enabled.
+    //  - hourly auto-refresh for the providers that support it, if enabled.
     //
     // Deliberately NOT a single long timer: a fire lost for any reason (event
     // coalescing, suspend, instance teardown) would silently stop the refresh
@@ -650,7 +653,7 @@ WallpaperItem {
 
     // Returns why the hourly refresh is due, or "" if it is not.
     function _hourlyRefreshReason(now) {
-        if (main.provider !== "spotlight" && main.provider !== "dscovr")
+        if (!Providers.supportsHourlyRefresh(main.provider))
             return "";
         if (!main.configuration.EnableHourlyRefresh)
             return "";
@@ -901,7 +904,9 @@ WallpaperItem {
         styleColor: "black"
         font.pixelSize: 14
         font.weight: Font.DemiBold
-        wrapMode: Text.Wrap
+        // Always a single line: text that does not fit (screens narrower than
+        // Full HD, see TextUtils.OVERLAY_MAX_CHARS) is elided, not wrapped.
+        elide: Text.ElideRight
         width: Math.min(implicitWidth, main.width * 0.7)
 
         horizontalAlignment: {

@@ -1,3 +1,5 @@
+.import "text.js" as TextUtils
+
 function padZero(n) {
     return n < 10 ? "0" + n : String(n);
 }
@@ -17,6 +19,16 @@ function buildUrl(market) {
 
 function stripHtml(html) {
     return html.replace(/<[^>]*>/g, "").trim();
+}
+
+function decodeEntities(s) {
+    return s
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
 }
 
 function parseResponse(responseText, isPortrait) {
@@ -43,14 +55,21 @@ function parseResponse(responseText, isPortrait) {
 
     var ext = info.extmetadata || {};
 
-    // Title: prefer localized ImageDescription first sentence, fallback to ObjectName
+    // Title and description both come from the localized ImageDescription:
+    // the title is its beginning, up to the end of the first sentence or the
+    // first comma or parenthesis; the description is the rest of the text.
+    // Without an ImageDescription, the title comes from ObjectName and there
+    // is no description.
     var title = "";
+    var description = "";
     if (ext.ImageDescription && ext.ImageDescription.value) {
-        title = stripHtml(ext.ImageDescription.value);
-        var cutoff = title.search(/[.,(]/);
-        if (cutoff > 0) {
-            title = title.substring(0, cutoff).trim();
+        var text = decodeEntities(stripHtml(ext.ImageDescription.value)).replace(/\s+/g, " ").trim();
+        title = TextUtils.firstSentence(text).replace(/[.!?]$/, "");
+        var titleCut = title.search(/[,(]/);
+        if (titleCut > 0) {
+            title = title.substring(0, titleCut).trim();
         }
+        description = text.substring(title.length).replace(/^[\s,.;:!?\u2013\u2014-]+/, "");
     } else if (ext.ObjectName && ext.ObjectName.value) {
         title = stripHtml(ext.ObjectName.value);
         var cutoff = title.search(/[,(]/);
@@ -83,7 +102,7 @@ function parseResponse(responseText, isPortrait) {
         imageUrl: imageUrl,
         thumbnailUrl: thumbnailUrl,
         title: title,
-        description: "",
+        description: description,
         copyright: copyright,
         copyrightLink: copyrightLink,
         copyrightText: copyright

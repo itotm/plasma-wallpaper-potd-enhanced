@@ -7,11 +7,14 @@ multiple providers, with copyright overlay and region selection.
 
 ## Features
 
-- **Multiple providers**: Bing, Biomedical Picture of the Day, Chandra X-ray
-  Observatory, EU Space Image of the Day, ESA Hubble Picture of the Week,
-  ESA Webb Picture of the Month, ESO Picture of the Week, NASA Astronomy
-  Picture of the Day, NASA Earth Observatory Image of the Day, Windows
-  Spotlight, and Wikimedia Commons.
+- **Multiple providers**: Bing, Chandra X-ray Observatory, EU Space Image of
+  the Day, ESA Hubble Picture of the Month, ESA Webb Picture of the Month, ESO
+  Picture of the Week, NASA Astronomy Picture of the Day, NASA Earth
+  Observatory Image of the Day, NASA Image of the Day, NOIRLab Image of the
+  Week, Windows Spotlight, and Wikimedia Commons.
+- **Live Earth and Sun**: DSCOVR EPIC, GOES-East (GOES-19) and GOES-West
+  (GOES-18) GeoColor full disk, and the Sun from SDO (AIA 171 Å, via
+  Helioviewer), shown whole on a black background.
 - **Orientation-aware**: automatically selects UHD landscape or portrait
   resolution based on screen dimensions.
 - **Region/market selection**: 14 locales available; auto-detected from system
@@ -20,14 +23,16 @@ multiple providers, with copyright overlay and region selection.
   same one applied as wallpaper (avoids re-fetching from random providers like
   Spotlight).
 - **Copyright overlay**: toggleable text overlay showing title and description,
-  positionable in any corner (top/bottom, left/right).
+  positionable in any corner (top/bottom, left/right). The description is cut
+  to its first sentence and the line always fits on one row on a Full HD
+  screen (longer text ends with an ellipsis).
 - **Right-click context menu**: "Open Wallpaper" (all providers) and "Refresh
   Image" (Spotlight).
 - **Error notifications**: system notification after 3 consecutive failures.
 - **Automatic refresh**: a new image is fetched when the day changes, even if
-  the session stays open for days (suspend/resume); Spotlight and DSCOVR can
-  also refresh hourly. After a failure the next automatic attempt waits 30
-  minutes.
+  the session stays open for days (suspend/resume); Spotlight, DSCOVR, GOES
+  and SDO can also refresh hourly. After a failure the next automatic attempt
+  waits 30 minutes.
 - **Retry mechanism**: configurable retry count and delay on network errors.
 - **Fallback**: caches the last valid image and restores it on failure.
 - **Instant startup**: a copy of the last wallpaper is persisted (QML

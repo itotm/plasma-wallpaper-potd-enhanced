@@ -100,9 +100,6 @@ function parseItem(item) {
         var pMatch = descHtml.match(/<p>([\s\S]*?)<\/p>/);
         if (pMatch) {
             description = decodeEntities(stripHtml(pMatch[1])).replace(/\s+/g, " ").trim();
-            if (description.length > 200) {
-                description = description.substring(0, 200).replace(/\s+\S*$/, "") + "…";
-            }
         }
     }
 

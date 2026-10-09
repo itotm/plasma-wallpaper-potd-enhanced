@@ -26,8 +26,6 @@ function parseResponse(responseText, isPortrait) {
     var descMatch = responseText.match(/<div class="card__text">([\s\S]*?)<\/div>/);
     if (descMatch) {
         description = descMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-        if (description.length > 200)
-            description = description.substring(0, 200).replace(/\s+\S*$/, "") + "…";
     }
 
     // Extract detail page link

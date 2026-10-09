@@ -45,11 +45,11 @@ function parseResponse(responseText, isPortrait) {
         imageUrl: imageUrl,
         thumbnailUrl: imageUrl,
         title: title,
-        description: "",
+        description: ad.description || "",
         copyright: copyright,
-        // The Spotlight API does not expose a copyright page, so leave the
-        // link empty instead of pointing it at the raw image file.
-        copyrightLink: "",
+        // "Learn more" link to the Bing page about the picture (there is no
+        // copyright page).
+        copyrightLink: ad.ctaUri || "",
         copyrightText: copyright
     };
 }
